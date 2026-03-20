@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ContributeModal from '../components/ContributeModal';
 import TranscriptEditor from '../components/TranscriptEditor';
 import RevisionHistory from '../components/RevisionHistory';
+import MediaPlayer from '../components/MediaPlayer';
 import './EpisodePage.css';
 
 function formatDuration(seconds) {
@@ -194,6 +195,11 @@ export default function EpisodePage() {
   const [editMode, setEditMode] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const transcriptRef = useRef(null);
+  const playerRef = useRef(null);
+  const [activeBlockIndex, setActiveBlockIndex] = useState(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const userScrollRef = useRef(false);
+  const userScrollTimerRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -267,6 +273,60 @@ export default function EpisodePage() {
   const blocks = transcript ? parseTranscript(transcript.content, transcript.format) : [];
   const wordCount = transcript ? transcript.content.replace(/\s+/g, ' ').trim().split(' ').length : 0;
   const readTime = Math.ceil(wordCount / 300);
+  const hasPlayer = !!(episode?.episode_url || episode?.audio_url);
+
+  // ── Media player sync ──
+  const handleTimeUpdate = useCallback((currentTime) => {
+    if (!blocks.length) return;
+    // Find the last block whose timestamp <= current time
+    let idx = -1;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (blocks[i].timestamp && parseVTTTimestamp(blocks[i].timestamp) <= currentTime) {
+        idx = i;
+        break;
+      }
+    }
+    setActiveBlockIndex(prev => prev !== idx ? idx : prev);
+  }, [blocks]);
+
+  const handlePlayStateChange = useCallback((playing) => {
+    setIsPlaying(playing);
+  }, []);
+
+  // Click transcript block → seek player
+  const handleBlockClick = useCallback((block) => {
+    if (!block.timestamp || !playerRef.current?.canSeek) return;
+    const secs = parseVTTTimestamp(block.timestamp);
+    playerRef.current.seekTo(secs);
+  }, []);
+
+  // Auto-scroll to active block (paused when user scrolls manually)
+  useEffect(() => {
+    if (activeBlockIndex < 0 || !isPlaying || userScrollRef.current) return;
+    const el = transcriptRef.current?.children[activeBlockIndex];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [activeBlockIndex, isPlaying]);
+
+  // Detect user manual scroll to pause auto-scroll temporarily
+  useEffect(() => {
+    const container = transcriptRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      userScrollRef.current = true;
+      clearTimeout(userScrollTimerRef.current);
+      userScrollTimerRef.current = setTimeout(() => {
+        userScrollRef.current = false;
+      }, 5000);
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    // Also listen on window since transcript may not be a scroll container itself
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(userScrollTimerRef.current);
+    };
+  }, [transcript, editMode]);
 
   if (loading) {
     return (
@@ -466,9 +526,15 @@ export default function EpisodePage() {
 
                   <div ref={transcriptRef} className={`transcript-body font-size--${fontSize}`}>
                     {blocks.map((block, idx) => (
-                      <div key={idx} className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''}`}>
+                      <div
+                        key={idx}
+                        className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''} ${idx === activeBlockIndex ? 'transcript-block--active' : ''} ${block.timestamp && playerRef.current?.canSeek ? 'transcript-block--clickable' : ''}`}
+                        onClick={() => handleBlockClick(block)}
+                      >
                         {block.timestamp && (
-                          <span className="block-timestamp">{block.timestamp}</span>
+                          <span className="block-timestamp" title={playerRef.current?.canSeek ? '点击跳转到此位置' : undefined}>
+                            {block.timestamp}
+                          </span>
                         )}
                         <p className="block-text">{renderTranscriptText(block.text)}</p>
                       </div>
@@ -512,6 +578,17 @@ export default function EpisodePage() {
 
         {/* Sidebar info */}
         <aside className="ep-aside">
+          {/* Embedded Media Player */}
+          {hasPlayer && (
+            <MediaPlayer
+              ref={playerRef}
+              episodeUrl={episode.episode_url}
+              audioUrl={episode.audio_url}
+              onTimeUpdate={handleTimeUpdate}
+              onPlayStateChange={handlePlayStateChange}
+            />
+          )}
+
           <div className="ep-aside-card">
             <h3 className="aside-title">节目信息</h3>
             <dl className="ep-details">

@@ -334,6 +334,33 @@
   overflow-wrap: break-word;
 }
 
+/* Active block during playback */
+.transcript-block--active {
+  border-color: var(--accent-primary) !important;
+  background: rgba(99, 102, 241, 0.08) !important;
+  border-left: 3px solid var(--accent-primary) !important;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.06);
+}
+
+.transcript-block--active .block-timestamp {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+/* Clickable blocks when player supports seeking */
+.transcript-block--clickable {
+  cursor: pointer;
+}
+
+.transcript-block--clickable:hover .block-timestamp {
+  background: var(--accent-secondary);
+  color: white;
+  border-color: var(--accent-secondary);
+  transform: scale(1.05);
+  transition: all 0.15s ease;
+}
+
 /* No transcript */
 .no-transcript {
   display: flex;
@@ -372,6 +399,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: calc(100vh - var(--header-height) - 40px);
+  overflow-y: auto;
 }
 
 .ep-aside-card {

@@ -46,8 +46,11 @@ const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '../../client/
 const fs = require('fs');
 if (fs.existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR));
-  app.get('/{*path}', (req, res) => {
-    res.sendFile(path.join(STATIC_DIR, 'index.html'));
+  // SPA catch-all: serve index.html for non-API routes
+  const indexHtml = fs.readFileSync(path.join(STATIC_DIR, 'index.html'), 'utf8');
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+    res.type('html').send(indexHtml);
   });
 }
 
