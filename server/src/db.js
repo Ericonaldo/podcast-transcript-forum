@@ -14,9 +14,41 @@ function getDb() {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
+    migrateFtsTrigram(db);
     initSchema(db);
   }
   return db;
+}
+
+// Migrate FTS tables to use trigram tokenizer if they exist with old tokenizer
+function migrateFtsTrigram(db) {
+  try {
+    // Check if FTS tables exist and if they use trigram
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_fts'").all();
+    if (tables.length === 0) return; // No FTS tables yet, initSchema will create them
+
+    // Check tokenizer of existing transcripts_fts
+    const ftsInfo = db.prepare("SELECT * FROM sqlite_master WHERE name='transcripts_fts'").get();
+    if (ftsInfo && !ftsInfo.sql.includes('trigram')) {
+      // Drop old FTS tables and triggers, recreate with trigram
+      db.exec(`
+        DROP TRIGGER IF EXISTS transcripts_ai;
+        DROP TRIGGER IF EXISTS transcripts_ad;
+        DROP TRIGGER IF EXISTS transcripts_au;
+        DROP TRIGGER IF EXISTS episodes_ai;
+        DROP TRIGGER IF EXISTS episodes_ad;
+        DROP TRIGGER IF EXISTS episodes_au;
+        DROP TRIGGER IF EXISTS podcasts_ai;
+        DROP TRIGGER IF EXISTS podcasts_ad;
+        DROP TRIGGER IF EXISTS podcasts_au;
+        DROP TABLE IF EXISTS transcripts_fts;
+        DROP TABLE IF EXISTS episodes_fts;
+        DROP TABLE IF EXISTS podcasts_fts;
+      `);
+    }
+  } catch (e) {
+    // If migration fails, just continue - initSchema will handle it
+  }
 }
 
 function initSchema(db) {
@@ -67,7 +99,7 @@ function initSchema(db) {
       content,
       content='transcripts',
       content_rowid='id',
-      tokenize='unicode61'
+      tokenize="trigram"
     );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS episodes_fts USING fts5(
@@ -76,7 +108,7 @@ function initSchema(db) {
       guests,
       content='episodes',
       content_rowid='id',
-      tokenize='unicode61'
+      tokenize="trigram"
     );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS podcasts_fts USING fts5(
@@ -85,7 +117,7 @@ function initSchema(db) {
       description,
       content='podcasts',
       content_rowid='id',
-      tokenize='unicode61'
+      tokenize="trigram"
     );
 
     CREATE TRIGGER IF NOT EXISTS transcripts_ai AFTER INSERT ON transcripts BEGIN
@@ -131,6 +163,29 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_episodes_published_date ON episodes(published_date);
     CREATE INDEX IF NOT EXISTS idx_transcripts_episode_id ON transcripts(episode_id);
   `);
+
+  // Populate FTS tables if they're empty (after migration or fresh install)
+  const ftsTranscriptCount = db.prepare('SELECT COUNT(*) as c FROM transcripts_fts').get().c;
+  if (ftsTranscriptCount === 0) {
+    const trCount = db.prepare('SELECT COUNT(*) as c FROM transcripts').get().c;
+    if (trCount > 0) {
+      db.exec(`INSERT INTO transcripts_fts(rowid, content) SELECT id, content FROM transcripts`);
+    }
+  }
+  const ftsEpisodeCount = db.prepare('SELECT COUNT(*) as c FROM episodes_fts').get().c;
+  if (ftsEpisodeCount === 0) {
+    const epCount = db.prepare('SELECT COUNT(*) as c FROM episodes').get().c;
+    if (epCount > 0) {
+      db.exec(`INSERT INTO episodes_fts(rowid, title, description, guests) SELECT id, title, COALESCE(description,''), COALESCE(guests,'') FROM episodes`);
+    }
+  }
+  const ftsPodcastCount = db.prepare('SELECT COUNT(*) as c FROM podcasts_fts').get().c;
+  if (ftsPodcastCount === 0) {
+    const podCount = db.prepare('SELECT COUNT(*) as c FROM podcasts').get().c;
+    if (podCount > 0) {
+      db.exec(`INSERT INTO podcasts_fts(rowid, name, host, description) SELECT id, name, COALESCE(host,''), COALESCE(description,'') FROM podcasts`);
+    }
+  }
 }
 
 function closeDb() {
