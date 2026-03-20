@@ -1,0 +1,49 @@
+{
+  "name": "podcast-transcript-forum",
+  "version": "1.0.0",
+  "description": "播客文字稿论坛 - Podcast transcript forum",
+  "main": "server/src/index.js",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "dev:server": "node --watch server/src/index.js",
+    "dev:client": "cd client && npx vite",
+    "build": "cd client && npx vite build",
+    "test": "jest --runInBand --forceExit",
+    "seed": "node scripts/seed.js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "forceExit": true,
+    "testTimeout": 10000
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ericonaldo/podcast-transcript-forum.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ericonaldo/podcast-transcript-forum/issues"
+  },
+  "homepage": "https://github.com/Ericonaldo/podcast-transcript-forum#readme",
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "body-parser": "^2.2.2",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "multer": "^2.1.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "jest": "^30.3.0",
+    "supertest": "^7.2.2",
+    "vite": "^8.0.1"
+  }
+}
