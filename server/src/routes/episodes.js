@@ -74,33 +74,66 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// GET /api/episodes/:id/transcript
+// GET /api/episodes/:id/transcript?lang=zh
+// Returns single transcript (for selected lang or best match), plus available_languages list
 router.get('/:id/transcript', (req, res) => {
   const db = getDb();
   const episode = db.prepare('SELECT id FROM episodes WHERE id = ?').get(req.params.id);
   if (!episode) return res.status(404).json({ error: 'Episode not found' });
 
-  const transcript = db.prepare('SELECT * FROM transcripts WHERE episode_id = ? ORDER BY created_at DESC LIMIT 1').get(req.params.id);
-  if (!transcript) return res.status(404).json({ error: 'Transcript not found' });
-  res.json(transcript);
+  // Get all transcripts for this episode
+  const all = db.prepare('SELECT * FROM transcripts WHERE episode_id = ? ORDER BY created_at ASC').all(req.params.id);
+  if (!all.length) return res.status(404).json({ error: 'Transcript not found' });
+
+  const availableLanguages = [...new Set(all.map(t => t.language))];
+
+  let transcript;
+  const requestedLang = req.query.lang;
+  if (requestedLang) {
+    transcript = all.find(t => t.language === requestedLang) || all[0];
+  } else {
+    // Default: prefer the original language (first inserted / oldest)
+    transcript = all[0];
+  }
+
+  res.json({ ...transcript, available_languages: availableLanguages });
+});
+
+// GET /api/episodes/:id/transcripts — list all language versions
+router.get('/:id/transcripts', (req, res) => {
+  const db = getDb();
+  const episode = db.prepare('SELECT id FROM episodes WHERE id = ?').get(req.params.id);
+  if (!episode) return res.status(404).json({ error: 'Episode not found' });
+
+  const transcripts = db.prepare('SELECT id, language, format, source, created_at FROM transcripts WHERE episode_id = ? ORDER BY created_at ASC').all(req.params.id);
+  res.json({ transcripts });
 });
 
 // POST /api/episodes/:id/transcript
+// Supports multi-language: if language differs from existing, add instead of replace.
+// Pass replace=true to force overwrite same language.
 router.post('/:id/transcript', (req, res) => {
   const db = getDb();
   const episode = db.prepare('SELECT id FROM episodes WHERE id = ?').get(req.params.id);
   if (!episode) return res.status(404).json({ error: 'Episode not found' });
 
-  const { content, format, language, source } = req.body;
+  const { content, format, language, source, replace } = req.body;
   if (!content) return res.status(400).json({ error: 'content is required' });
 
-  // Delete existing transcript for this episode and replace
-  db.prepare('DELETE FROM transcripts WHERE episode_id = ?').run(req.params.id);
+  const lang = language || 'zh';
+
+  // If replace=true or same language exists, update it; otherwise add new
+  const existing = db.prepare('SELECT id FROM transcripts WHERE episode_id = ? AND language = ?').get(req.params.id, lang);
+  if (existing && replace !== false) {
+    db.prepare('UPDATE transcripts SET content=?, format=?, source=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(content, format || 'plain', source || 'manual', existing.id);
+    const transcript = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(existing.id);
+    return res.status(200).json(transcript);
+  }
 
   const result = db.prepare(`
     INSERT INTO transcripts (episode_id, content, format, language, source)
     VALUES (?, ?, ?, ?, ?)
-  `).run(req.params.id, content, format || 'plain', language || 'zh', source || 'manual');
+  `).run(req.params.id, content, format || 'plain', lang, source || 'manual');
 
   const transcript = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(transcript);

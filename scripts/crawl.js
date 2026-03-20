@@ -538,7 +538,7 @@ function saveTranscript(db, episodeId, content, format, language, source) {
 // ─── Phase 1: YouTube channel crawl ─────────────────────────────────────────
 async function crawlYouTubeChannel(db, meta, stats, needsAsr) {
   const { channelId, language } = meta;
-  const lang = language === 'zh' ? 'zh' : 'en';
+  const lang = language === 'zh' ? 'zh-Hans-zh-CN' : 'en';
   const fallbackLang = language === 'zh' ? 'zh-Hans' : 'en';
 
   console.log(`  📥 Fetching channel video list...`);

@@ -21,20 +21,21 @@ router.get('/check', (req, res) => {
     SELECT e.id, e.podcast_id, e.title, p.name as podcast_name
     FROM episodes e
     JOIN podcasts p ON p.id = e.podcast_id
-    JOIN transcripts t ON t.episode_id = e.id
     WHERE e.episode_url = ? OR e.audio_url = ?
-    ORDER BY t.created_at DESC
     LIMIT 1
   `).get(url, url);
 
   if (!episode) return res.json({ found: false });
 
+  const transcripts = db.prepare('SELECT language, source FROM transcripts WHERE episode_id = ?').all(episode.id);
+
   res.json({
-    found: true,
+    found: transcripts.length > 0,
     episodeId: episode.id,
     podcastId: episode.podcast_id,
     episodeTitle: episode.title,
-    podcastName: episode.podcast_name
+    podcastName: episode.podcast_name,
+    available_languages: transcripts.map(t => t.language)
   });
 });
 
@@ -107,24 +108,33 @@ router.post('/upload', (req, res) => {
     episodeRecord = { id: r.lastInsertRowid };
   }
 
-  // Replace existing transcript for this episode
-  db.prepare('DELETE FROM transcripts WHERE episode_id = ?').run(episodeRecord.id);
-
+  // Multi-language support: if same language exists, update; otherwise add new
+  const lang = transcript.language || 'zh';
+  const source = transcript.source || 'asr';
   const now = new Date().toISOString();
   const sha = makeSha(transcript.content, now);
-  const source = transcript.source || 'asr';
+
+  const existingTr = db.prepare('SELECT id FROM transcripts WHERE episode_id = ? AND language = ?').get(episodeRecord.id, lang);
 
   const result = db.transaction(() => {
-    const r = db.prepare(`
-      INSERT INTO transcripts (episode_id, content, format, language, source)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      episodeRecord.id,
-      transcript.content,
-      transcript.format || 'plain',
-      transcript.language || 'zh',
-      source
-    );
+    let transcriptId;
+    if (existingTr) {
+      db.prepare('UPDATE transcripts SET content=?, format=?, source=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(
+        transcript.content, transcript.format || 'plain', source, existingTr.id);
+      transcriptId = existingTr.id;
+    } else {
+      const r = db.prepare(`
+        INSERT INTO transcripts (episode_id, content, format, language, source)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        episodeRecord.id,
+        transcript.content,
+        transcript.format || 'plain',
+        lang,
+        source
+      );
+      transcriptId = r.lastInsertRowid;
+    }
 
     // Seed revision history with initial upload
     db.prepare(`
@@ -139,7 +149,7 @@ router.post('/upload', (req, res) => {
       sha
     );
 
-    return r.lastInsertRowid;
+    return transcriptId;
   })();
 
   res.status(201).json({

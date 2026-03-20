@@ -154,10 +154,24 @@ function parseTranscript(content, format) {
   }).filter(b => b.text);
 }
 
+// Human-readable language names
+const LANG_NAMES = {
+  zh: '中文', 'zh-Hans': '中文(简体)', 'zh-Hant': '中文(繁体)',
+  'zh-Hans-zh-CN': '中文(简体)', 'zh-CN': '中文', 'zh-TW': '中文(繁体)',
+  en: 'English', 'en-US': 'English', 'en-GB': 'English',
+  ja: '日本語', ko: '한국어', fr: 'Français', de: 'Deutsch',
+  es: 'Español', pt: 'Português', ar: 'العربية',
+};
+function langLabel(code) {
+  return LANG_NAMES[code] || code;
+}
+
 export default function EpisodePage() {
   const { id } = useParams();
   const [episode, setEpisode] = useState(null);
   const [transcript, setTranscript] = useState(null);
+  const [availableLangs, setAvailableLangs] = useState([]);
+  const [selectedLang, setSelectedLang] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fontSize, setFontSize] = useState('md');
   const [showContribute, setShowContribute] = useState(false);
@@ -167,13 +181,16 @@ export default function EpisodePage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      fetch(`/api/episodes/${id}`).then(r => r.json()),
-      fetch(`/api/episodes/${id}/transcript`).then(r => r.ok ? r.json() : null).catch(() => null)
-    ]).then(([ep, tr]) => {
+    fetch(`/api/episodes/${id}`).then(r => r.json()).then(ep => {
       setEpisode(ep);
+      return fetch(`/api/episodes/${id}/transcript`);
+    }).then(r => r.ok ? r.json() : null).then(tr => {
       setTranscript(tr);
-    }).finally(() => setLoading(false));
+      if (tr?.available_languages) {
+        setAvailableLangs(tr.available_languages);
+        setSelectedLang(tr.language);
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [id]);
 
   function handleContributeSuccess(newTranscript) {
@@ -183,13 +200,12 @@ export default function EpisodePage() {
   }
 
   function handleEditSuccess(revision) {
-    // Update transcript content from revision
     setTranscript(prev => prev
       ? { ...prev, content: revision.content, updated_at: revision.created_at }
       : { episode_id: parseInt(id), content: revision.content, source: 'community_edit' }
     );
     setEditMode(false);
-    setShowHistory(true); // Show history panel to see the new commit
+    setShowHistory(true);
   }
 
   function handleRestore(revision) {
@@ -198,6 +214,15 @@ export default function EpisodePage() {
       : null
     );
     setShowHistory(false);
+  }
+
+  // Switch language: fetch the specific language transcript
+  function switchLang(lang) {
+    if (lang === selectedLang) return;
+    setSelectedLang(lang);
+    fetch(`/api/episodes/${id}/transcript?lang=${encodeURIComponent(lang)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(tr => { if (tr) setTranscript(tr); });
   }
 
   const blocks = transcript ? parseTranscript(transcript.content, transcript.format) : [];
@@ -337,6 +362,19 @@ export default function EpisodePage() {
                       </div>
                     </div>
                     <div className="toolbar-right">
+                      {availableLangs.length > 1 && (
+                        <div className="lang-switcher">
+                          {availableLangs.map(lang => (
+                            <button
+                              key={lang}
+                              className={`lang-btn ${selectedLang === lang ? 'lang-btn--active' : ''}`}
+                              onClick={() => switchLang(lang)}
+                            >
+                              {langLabel(lang)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="font-size-ctrl">
                         {['sm', 'md', 'lg'].map(size => (
                           <button

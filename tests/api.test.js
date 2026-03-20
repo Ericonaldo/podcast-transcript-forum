@@ -251,14 +251,32 @@ describe('Transcripts API', () => {
     expect(res.body.format).toBe('plain');
   });
 
-  test('POST /api/episodes/:id/transcript replaces existing transcript', async () => {
+  test('POST /api/episodes/:id/transcript replaces existing transcript (same language)', async () => {
     const res = await request(app).post(`/api/episodes/${episodeId}/transcript`).send({
       content: 'Updated transcript content',
       format: 'plain'
     });
-    expect(res.status).toBe(201);
+    // 200 when updating existing same-language transcript
+    expect([200, 201]).toContain(res.status);
     const get = await request(app).get(`/api/episodes/${episodeId}/transcript`);
     expect(get.body.content).toBe('Updated transcript content');
+  });
+
+  test('POST /api/episodes/:id/transcript adds second language', async () => {
+    const res = await request(app).post(`/api/episodes/${episodeId}/transcript`).send({
+      content: 'English transcript content',
+      format: 'plain',
+      language: 'en'
+    });
+    expect(res.status).toBe(201);
+    // Should be two languages now
+    const get = await request(app).get(`/api/episodes/${episodeId}/transcript`);
+    expect(get.body.available_languages).toBeDefined();
+    expect(get.body.available_languages.length).toBeGreaterThanOrEqual(2);
+    // Request specific language
+    const en = await request(app).get(`/api/episodes/${episodeId}/transcript?lang=en`);
+    expect(en.body.content).toBe('English transcript content');
+    expect(en.body.language).toBe('en');
   });
 
   test('POST /api/episodes/:id/transcript requires content', async () => {
