@@ -9,6 +9,7 @@ const podcastsRouter = require('./routes/podcasts');
 const episodesRouter = require('./routes/episodes');
 const searchRouter = require('./routes/search');
 const uploadRouter = require('./routes/upload');
+const revisionsRouter = require('./routes/revisions');
 
 const app = express();
 const PORT = process.env.PORT || 4010;
@@ -33,6 +34,7 @@ app.use('/api/podcasts', podcastsRouter);
 app.use('/api/episodes', episodesRouter);
 app.use('/api/search', searchRouter);
 app.use('/api', uploadRouter);
+app.use('/api/episodes/:episodeId/revisions', revisionsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

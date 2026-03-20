@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import ContributeModal from '../components/ContributeModal';
+import TranscriptEditor from '../components/TranscriptEditor';
+import RevisionHistory from '../components/RevisionHistory';
 import './EpisodePage.css';
 
 function formatDuration(seconds) {
@@ -157,7 +160,9 @@ export default function EpisodePage() {
   const [transcript, setTranscript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fontSize, setFontSize] = useState('md');
-  const [showToc, setShowToc] = useState(false);
+  const [showContribute, setShowContribute] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const transcriptRef = useRef(null);
 
   useEffect(() => {
@@ -170,6 +175,30 @@ export default function EpisodePage() {
       setTranscript(tr);
     }).finally(() => setLoading(false));
   }, [id]);
+
+  function handleContributeSuccess(newTranscript) {
+    setTranscript(newTranscript);
+    setShowContribute(false);
+    setShowHistory(false);
+  }
+
+  function handleEditSuccess(revision) {
+    // Update transcript content from revision
+    setTranscript(prev => prev
+      ? { ...prev, content: revision.content, updated_at: revision.created_at }
+      : { episode_id: parseInt(id), content: revision.content, source: 'community_edit' }
+    );
+    setEditMode(false);
+    setShowHistory(true); // Show history panel to see the new commit
+  }
+
+  function handleRestore(revision) {
+    setTranscript(prev => prev
+      ? { ...prev, content: revision.content }
+      : null
+    );
+    setShowHistory(false);
+  }
 
   const blocks = transcript ? parseTranscript(transcript.content, transcript.format) : [];
   const wordCount = transcript ? transcript.content.replace(/\s+/g, ' ').trim().split(' ').length : 0;
@@ -202,6 +231,15 @@ export default function EpisodePage() {
 
   return (
     <div className="page episode-page">
+      {/* Contribute Modal */}
+      {showContribute && (
+        <ContributeModal
+          episode={episode}
+          onClose={() => setShowContribute(false)}
+          onSuccess={handleContributeSuccess}
+        />
+      )}
+
       {/* Breadcrumb */}
       <div className="breadcrumb">
         <Link to="/" className="bc-link">首页</Link>
@@ -274,47 +312,108 @@ export default function EpisodePage() {
         <div className="ep-transcript-area">
           {transcript ? (
             <>
-              <div className="transcript-toolbar">
-                <div className="toolbar-left">
-                  <h2 className="transcript-label">文字稿</h2>
-                  <div className="transcript-stats">
-                    <span>{wordCount.toLocaleString()} 字</span>
-                    <span>约 {readTime} 分钟</span>
-                    <span className="transcript-source">来源: {transcript.source}</span>
+              {/* Edit mode */}
+              {editMode ? (
+                <div className="ep-edit-mode">
+                  <div className="ep-edit-mode-header">
+                    <h2 className="transcript-label">编辑文字稿</h2>
                   </div>
+                  <TranscriptEditor
+                    episodeId={id}
+                    originalContent={transcript.content}
+                    onCancel={() => setEditMode(false)}
+                    onSuccess={handleEditSuccess}
+                  />
                 </div>
-                <div className="toolbar-right">
-                  <div className="font-size-ctrl">
-                    {['sm', 'md', 'lg'].map(size => (
+              ) : (
+                <>
+                  <div className="transcript-toolbar">
+                    <div className="toolbar-left">
+                      <h2 className="transcript-label">文字稿</h2>
+                      <div className="transcript-stats">
+                        <span>{wordCount.toLocaleString()} 字</span>
+                        <span>约 {readTime} 分钟</span>
+                        <span className="transcript-source">来源: {transcript.source}</span>
+                      </div>
+                    </div>
+                    <div className="toolbar-right">
+                      <div className="font-size-ctrl">
+                        {['sm', 'md', 'lg'].map(size => (
+                          <button
+                            key={size}
+                            className={`font-btn ${fontSize === size ? 'font-btn--active' : ''}`}
+                            onClick={() => setFontSize(size)}
+                            title={{ sm: '小', md: '中', lg: '大' }[size]}
+                          >
+                            A
+                          </button>
+                        ))}
+                      </div>
                       <button
-                        key={size}
-                        className={`font-btn ${fontSize === size ? 'font-btn--active' : ''}`}
-                        onClick={() => setFontSize(size)}
-                        title={{ sm: '小', md: '中', lg: '大' }[size]}
+                        className="btn-history"
+                        onClick={() => setShowHistory(v => !v)}
+                        title="查看修改历史"
                       >
-                        A
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="4"/><line x1="1.05" y1="12" x2="7" y2="12"/><line x1="17.01" y1="12" x2="22.96" y2="12"/>
+                        </svg>
+                        历史
                       </button>
+                      <button
+                        className="btn-edit-transcript"
+                        onClick={() => setEditMode(true)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        我要修改
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Revision history panel (collapsible) */}
+                  {showHistory && (
+                    <RevisionHistory
+                      episodeId={id}
+                      onRestore={handleRestore}
+                    />
+                  )}
+
+                  <div ref={transcriptRef} className={`transcript-body font-size--${fontSize}`}>
+                    {blocks.map((block, idx) => (
+                      <div key={idx} className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''}`}>
+                        {block.timestamp && (
+                          <span className="block-timestamp">{block.timestamp}</span>
+                        )}
+                        <p className="block-text">{block.text}</p>
+                      </div>
                     ))}
                   </div>
-                </div>
-              </div>
-
-              <div ref={transcriptRef} className={`transcript-body font-size--${fontSize}`}>
-                {blocks.map((block, idx) => (
-                  <div key={idx} className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''}`}>
-                    {block.timestamp && (
-                      <span className="block-timestamp">{block.timestamp}</span>
-                    )}
-                    <p className="block-text">{block.text}</p>
-                  </div>
-                ))}
-              </div>
+                </>
+              )}
             </>
           ) : (
+            /* No transcript — show contribute CTA */
             <div className="no-transcript">
               <div className="no-transcript-icon">📝</div>
               <h3>暂无文字稿</h3>
               <p>该节目尚未提供文字稿内容</p>
+              <div className="contribute-cta">
+                <button
+                  className="btn-contribute"
+                  onClick={() => setShowContribute(true)}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                  我来贡献文字稿
+                </button>
+                <p className="contribute-hint">
+                  使用 EchoShell 插件自动转译，或手动粘贴文字稿。
+                  点击按钮查看详细说明。
+                </p>
+              </div>
               {episode.audio_url && (
                 <a href={episode.audio_url} target="_blank" rel="noopener noreferrer" className="btn-play" style={{ marginTop: 16 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -364,6 +463,42 @@ export default function EpisodePage() {
               )}
             </dl>
           </div>
+
+          {/* Community contribution card */}
+          {!transcript && (
+            <div className="ep-aside-card ep-aside-card--contribute">
+              <h3 className="aside-title">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+                贡献文字稿
+              </h3>
+              <p className="aside-desc">帮助社区，贡献这期节目的文字稿。</p>
+              <button className="btn-contribute-sm" onClick={() => setShowContribute(true)}>
+                我来贡献 →
+              </button>
+            </div>
+          )}
+
+          {transcript && (
+            <div className="ep-aside-card ep-aside-card--edit">
+              <h3 className="aside-title">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="4"/><line x1="1.05" y1="12" x2="7" y2="12"/><line x1="17.01" y1="12" x2="22.96" y2="12"/>
+                </svg>
+                社区协作
+              </h3>
+              <p className="aside-desc">发现错误？欢迎修正文字稿，每次修改都会被记录。</p>
+              <div className="aside-actions">
+                <button className="btn-contribute-sm" onClick={() => setEditMode(true)}>
+                  我要修改
+                </button>
+                <button className="btn-ghost-xs" onClick={() => setShowHistory(v => !v)}>
+                  {showHistory ? '隐藏历史' : '查看历史'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {episode.description && (
             <div className="ep-aside-card">

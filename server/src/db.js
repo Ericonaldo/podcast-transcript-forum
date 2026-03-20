@@ -162,6 +162,22 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id);
     CREATE INDEX IF NOT EXISTS idx_episodes_published_date ON episodes(published_date);
     CREATE INDEX IF NOT EXISTS idx_transcripts_episode_id ON transcripts(episode_id);
+
+    -- Git-like revision history for transcripts
+    CREATE TABLE IF NOT EXISTS transcript_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      episode_id INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      message TEXT DEFAULT 'Update transcript',
+      author TEXT DEFAULT 'Anonymous',
+      source TEXT DEFAULT 'community_edit',
+      parent_id INTEGER REFERENCES transcript_revisions(id),
+      sha TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_revisions_episode_id ON transcript_revisions(episode_id);
+    CREATE INDEX IF NOT EXISTS idx_revisions_parent_id ON transcript_revisions(parent_id);
   `);
 
   // Populate FTS tables if they're empty (after migration or fresh install)

@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { getDb } = require('../db');
+
+function makeSha(content, timestamp) {
+  return crypto.createHash('sha1').update(content + timestamp).digest('hex').slice(0, 40);
+}
 
 /**
  * GET /api/check?url=<episode_url>
@@ -105,22 +110,43 @@ router.post('/upload', (req, res) => {
   // Replace existing transcript for this episode
   db.prepare('DELETE FROM transcripts WHERE episode_id = ?').run(episodeRecord.id);
 
-  const r = db.prepare(`
-    INSERT INTO transcripts (episode_id, content, format, language, source)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(
-    episodeRecord.id,
-    transcript.content,
-    transcript.format || 'plain',
-    transcript.language || 'zh',
-    transcript.source || 'asr'
-  );
+  const now = new Date().toISOString();
+  const sha = makeSha(transcript.content, now);
+  const source = transcript.source || 'asr';
+
+  const result = db.transaction(() => {
+    const r = db.prepare(`
+      INSERT INTO transcripts (episode_id, content, format, language, source)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      episodeRecord.id,
+      transcript.content,
+      transcript.format || 'plain',
+      transcript.language || 'zh',
+      source
+    );
+
+    // Seed revision history with initial upload
+    db.prepare(`
+      INSERT INTO transcript_revisions (episode_id, content, message, author, source, parent_id, sha)
+      VALUES (?, ?, ?, ?, ?, NULL, ?)
+    `).run(
+      episodeRecord.id,
+      transcript.content,
+      transcript.message || '初始上传',
+      transcript.author || 'Anonymous',
+      source,
+      sha
+    );
+
+    return r.lastInsertRowid;
+  })();
 
   res.status(201).json({
     success: true,
     episodeId: episodeRecord.id,
     podcastId: podcastRecord.id,
-    transcriptId: r.lastInsertRowid
+    transcriptId: result
   });
 });
 

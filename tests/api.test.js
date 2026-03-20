@@ -463,3 +463,100 @@ describe('Upload API (anonymous)', () => {
     expect(transcriptRes.body.content).toBe('更新后的转译文字稿。');
   });
 });
+
+describe('Revisions API', () => {
+  let episodeId;
+  let revSha;
+
+  beforeAll(async () => {
+    // Create a podcast + episode + transcript via upload
+    const res = await request(app).post('/api/upload').send({
+      podcast: { name: 'Revisions Test Podcast' },
+      episode: { title: 'Revisions Test Episode', episode_url: 'https://example.com/rev-episode' },
+      transcript: { content: '第一版内容。', source: 'manual' }
+    });
+    expect(res.status).toBe(201);
+    episodeId = res.body.episodeId;
+  });
+
+  test('GET /api/episodes/:id/revisions returns list with initial revision', async () => {
+    const res = await request(app).get(`/api/episodes/${episodeId}/revisions`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    const first = res.body[0];
+    expect(first).toHaveProperty('sha');
+    expect(first).toHaveProperty('message');
+    expect(first).toHaveProperty('author');
+    expect(first).toHaveProperty('source');
+    expect(first).toHaveProperty('created_at');
+    revSha = first.sha;
+  });
+
+  test('GET /api/episodes/:id/revisions/:sha returns full revision with content', async () => {
+    const res = await request(app).get(`/api/episodes/${episodeId}/revisions/${revSha}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('sha', revSha);
+    expect(res.body).toHaveProperty('content');
+    expect(typeof res.body.content).toBe('string');
+  });
+
+  test('POST /api/episodes/:id/revisions creates a new revision', async () => {
+    const res = await request(app)
+      .post(`/api/episodes/${episodeId}/revisions`)
+      .send({
+        content: '第二版内容，修正了错误。',
+        message: '修正错别字',
+        author: 'TestUser',
+        source: 'community_edit'
+      });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('sha');
+    expect(res.body).toHaveProperty('message', '修正错别字');
+    expect(res.body).toHaveProperty('author', 'TestUser');
+    expect(res.body).toHaveProperty('source', 'community_edit');
+    // Verify transcript content was updated
+    const transcriptRes = await request(app).get(`/api/episodes/${episodeId}/transcript`);
+    expect(transcriptRes.body.content).toBe('第二版内容，修正了错误。');
+  });
+
+  test('GET /api/episodes/:id/revisions returns 2 revisions after edit', async () => {
+    const res = await request(app).get(`/api/episodes/${episodeId}/revisions`);
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBe(2);
+    // Most recent first
+    expect(res.body[0].message).toBe('修正错别字');
+  });
+
+  test('POST /api/episodes/:id/revisions/:sha/restore creates revert commit', async () => {
+    const res = await request(app)
+      .post(`/api/episodes/${episodeId}/revisions/${revSha}/restore`)
+      .send({ author: 'RestoreUser' });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('sha');
+    expect(res.body).toHaveProperty('source', 'revert');
+    expect(res.body.message).toMatch(/回滚/);
+    // Transcript should now have original content
+    const transcriptRes = await request(app).get(`/api/episodes/${episodeId}/transcript`);
+    expect(transcriptRes.body.content).toBe('第一版内容。');
+  });
+
+  test('GET /api/episodes/:id/revisions returns 3 revisions after restore', async () => {
+    const res = await request(app).get(`/api/episodes/${episodeId}/revisions`);
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBe(3);
+    expect(res.body[0].source).toBe('revert');
+  });
+
+  test('POST /api/episodes/:id/revisions requires content', async () => {
+    const res = await request(app)
+      .post(`/api/episodes/${episodeId}/revisions`)
+      .send({ message: 'No content here' });
+    expect(res.status).toBe(400);
+  });
+
+  test('GET /api/episodes/:id/revisions/:sha returns 404 for invalid sha', async () => {
+    const res = await request(app).get(`/api/episodes/${episodeId}/revisions/deadbeefdeadbeef`);
+    expect(res.status).toBe(404);
+  });
+});
