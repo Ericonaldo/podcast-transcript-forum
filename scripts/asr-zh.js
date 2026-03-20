@@ -60,6 +60,7 @@ print(json.dumps(result, ensure_ascii=False))
 `;
   const r = spawnSync('python3', ['-c', script], {
     timeout: MAX_AUDIO_DURATION * 1000,
+    env: { ...process.env, LD_LIBRARY_PATH: '/home/mhliu/miniconda3/pkgs/libcublas-12.6.4.1-0/lib:' + (process.env.LD_LIBRARY_PATH || '') },
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 50 * 1024 * 1024,

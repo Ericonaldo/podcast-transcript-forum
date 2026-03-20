@@ -602,7 +602,7 @@
 /* ── Reading mode ── */
 .ep-content-layout--reading {
   grid-template-columns: 1fr !important;
-  max-width: 800px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
@@ -612,8 +612,8 @@
 }
 
 .ep-content-layout--reading .transcript-block--reading {
-  padding: 16px 24px;
-  margin-bottom: 8px;
+  padding: 14px 28px;
+  margin-bottom: 4px;
   border-left: none;
   border-radius: 0;
   border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -624,8 +624,7 @@
 }
 
 .ep-content-layout--reading .block-timestamp {
-  display: inline-block;
-  margin-bottom: 6px;
+  display: none;
 }
 
 /* Floating reading mode toggle */
