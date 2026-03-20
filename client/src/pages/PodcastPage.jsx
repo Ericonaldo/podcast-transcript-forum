@@ -182,9 +182,13 @@ function EpisodeRow({ episode }) {
   return (
     <Link to={`/episodes/${episode.id}`} className="episode-row">
       <div className="episode-row-left">
-        <div className="episode-number">
-          {episode.episode_number ? `E${episode.episode_number}` : '•'}
-        </div>
+        {episode.image_url ? (
+          <img src={episode.image_url} alt="" className="episode-thumb" loading="lazy" />
+        ) : (
+          <div className="episode-number">
+            {episode.episode_number ? `E${episode.episode_number}` : '•'}
+          </div>
+        )}
       </div>
       <div className="episode-row-body">
         <div className="episode-row-top">
