@@ -82,18 +82,44 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="podcast-grid">
-        {podcasts.map(podcast => (
-          <PodcastCard key={podcast.id} podcast={podcast} />
-        ))}
-        {loading && Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="podcast-card-skeleton">
-            <div className="skeleton" style={{ height: 80, marginBottom: 12 }} />
-            <div className="skeleton" style={{ height: 18, width: '70%', marginBottom: 8 }} />
-            <div className="skeleton" style={{ height: 14, width: '50%' }} />
+      {(() => {
+        const zhPodcasts = podcasts.filter(p => p.language && p.language.startsWith('zh'));
+        const enPodcasts = podcasts.filter(p => !p.language || !p.language.startsWith('zh'));
+        const sections = [];
+        if (zhPodcasts.length > 0) sections.push({ label: '中文播客', podcasts: zhPodcasts });
+        if (enPodcasts.length > 0) sections.push({ label: 'English Podcasts', podcasts: enPodcasts });
+        // If no language split possible, show flat
+        if (sections.length <= 1 && podcasts.length > 0) {
+          return (
+            <div className="podcast-grid">
+              {podcasts.map(podcast => (
+                <PodcastCard key={podcast.id} podcast={podcast} />
+              ))}
+            </div>
+          );
+        }
+        return sections.map(section => (
+          <div key={section.label} className="podcast-lang-section">
+            <h2 className="podcast-lang-title">{section.label}</h2>
+            <div className="podcast-grid">
+              {section.podcasts.map(podcast => (
+                <PodcastCard key={podcast.id} podcast={podcast} />
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
+        ));
+      })()}
+      {loading && (
+        <div className="podcast-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="podcast-card-skeleton">
+              <div className="skeleton" style={{ height: 80, marginBottom: 12 }} />
+              <div className="skeleton" style={{ height: 18, width: '70%', marginBottom: 8 }} />
+              <div className="skeleton" style={{ height: 14, width: '50%' }} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {hasMore && !loading && (
         <div className="load-more-container">

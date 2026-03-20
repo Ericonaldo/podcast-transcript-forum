@@ -76,6 +76,19 @@
   border-color: rgba(99, 102, 241, 0.3);
 }
 
+.podcast-lang-section {
+  margin-bottom: 32px;
+}
+
+.podcast-lang-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .podcast-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
