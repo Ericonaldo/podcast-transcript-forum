@@ -9,7 +9,8 @@
     "dev:client": "cd client && npx vite",
     "build": "cd client && npx vite build",
     "test": "jest --runInBand --forceExit",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "crawl": "node scripts/crawl.js"
   },
   "jest": {
     "testEnvironment": "node",
