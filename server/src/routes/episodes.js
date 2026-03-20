@@ -8,10 +8,9 @@ router.get('/:id', (req, res) => {
   const episode = db.prepare(`
     SELECT e.*, p.name as podcast_name, p.host as podcast_host,
            p.image_url as podcast_image, p.category as podcast_category,
-           CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END as has_transcript
+           CASE WHEN EXISTS(SELECT 1 FROM transcripts t WHERE t.episode_id = e.id) THEN 1 ELSE 0 END as has_transcript
     FROM episodes e
     JOIN podcasts p ON p.id = e.podcast_id
-    LEFT JOIN transcripts t ON t.episode_id = e.id
     WHERE e.id = ?
   `).get(req.params.id);
 

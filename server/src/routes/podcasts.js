@@ -27,8 +27,8 @@ router.get('/', (req, res) => {
   }
 
   const rows = db.prepare(`
-    SELECT p.*, COUNT(e.id) as episode_count,
-           SUM(CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END) as transcript_count
+    SELECT p.*, COUNT(DISTINCT e.id) as episode_count,
+           COUNT(DISTINCT CASE WHEN t.id IS NOT NULL THEN e.id END) as transcript_count
     FROM podcasts p
     LEFT JOIN episodes e ON e.podcast_id = p.id
     LEFT JOIN transcripts t ON t.episode_id = e.id
@@ -131,9 +131,8 @@ router.get('/:id/episodes', (req, res) => {
   const total = db.prepare('SELECT COUNT(*) as count FROM episodes WHERE podcast_id = ?').get(req.params.id).count;
   const episodes = db.prepare(`
     SELECT e.*,
-           CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END as has_transcript
+           CASE WHEN EXISTS(SELECT 1 FROM transcripts t WHERE t.episode_id = e.id) THEN 1 ELSE 0 END as has_transcript
     FROM episodes e
-    LEFT JOIN transcripts t ON t.episode_id = e.id
     WHERE e.podcast_id = ?
     ORDER BY e.published_date DESC, e.id DESC
     LIMIT ? OFFSET ?
