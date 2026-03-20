@@ -18,33 +18,137 @@ function formatDate(dateStr) {
   } catch { return dateStr; }
 }
 
+// Format seconds to MM:SS or HH:MM:SS
+function secsToTimecode(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function parseVTTTimestamp(ts) {
+  const parts = ts.trim().split(':');
+  if (parts.length === 3) return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+  if (parts.length === 2) return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+  return parseFloat(parts[0] || 0);
+}
+
+function stripVTTTags(text) {
+  return text
+    .replace(/<\d{1,2}:\d{2}:\d{2}[.,]\d{3}>/g, '')  // inline timestamp tags
+    .replace(/<\/?[a-z][^>]*>/gi, '')                   // VTT/HTML tags
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ').replace(/&apos;/g, "'").replace(/&quot;/g, '"')
+    .trim();
+}
+
 // Parse transcript content - support plain text, VTT, SRT
 function parseTranscript(content, format) {
   if (!content) return [];
 
-  if (format === 'vtt' || format === 'srt') {
-    // Parse VTT/SRT cue blocks
-    const blocks = [];
-    const lines = content.split('\n');
-    let current = null;
+  if (format === 'vtt') {
+    const rawCues = [];
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.includes('-->')) {
-        if (current) blocks.push(current);
-        const [start] = trimmed.split('-->').map(t => t.trim());
-        current = { timestamp: start, text: '' };
-      } else if (current && trimmed && !trimmed.match(/^\d+$/) && trimmed !== 'WEBVTT') {
-        current.text += (current.text ? ' ' : '') + trimmed;
+    // Detect YouTube auto-caption rolling format (has <c> inline timing tags)
+    const isYouTubeAutoCaption = /<\d{1,2}:\d{2}:\d{2}[.,]\d{3}>/.test(content);
+
+    // Split into cue blocks (separated by blank lines)
+    const cueBlocks = content.split(/\n\s*\n/);
+    for (const block of cueBlocks) {
+      const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines.length) continue;
+      // Skip header lines
+      if (/^(WEBVTT|NOTE|STYLE|Kind:|Language:)/.test(lines[0])) continue;
+
+      // Find timing line
+      const timingIdx = lines.findIndex(l => l.includes('-->'));
+      if (timingIdx === -1) continue;
+      const timingMatch = lines[timingIdx].match(/(\d[\d:.]+)\s*-->\s*(\d[\d:.]+)/);
+      if (!timingMatch) continue;
+
+      const startSec = parseVTTTimestamp(timingMatch[1]);
+      const endSec = parseVTTTimestamp(timingMatch[2]);
+
+      // Skip flash cues < 0.15s — YouTube uses these as "settled" duplicate cues
+      if (endSec - startSec < 0.15) continue;
+
+      // Get text lines, strip all VTT/timing tags
+      const textLines = lines.slice(timingIdx + 1)
+        .map(stripVTTTags)
+        .filter(l => l.length > 0);
+      if (!textLines.length) continue;
+
+      if (isYouTubeAutoCaption) {
+        // YouTube rolling captions: each cue shows [previous line, new words]
+        // Take only the LAST line to avoid duplicating content from prior cue
+        rawCues.push({ startSec, text: textLines[textLines.length - 1] });
+      } else {
+        // Clean VTT: take ALL text lines joined
+        rawCues.push({ startSec, text: textLines.join(' ') });
       }
     }
-    if (current) blocks.push(current);
-    return blocks;
+
+    if (!rawCues.length) return [];
+
+    // Group into ~60-second paragraphs for readability
+    const WINDOW = 60;
+    const grouped = [];
+    let winStart = rawCues[0].startSec;
+    let winTexts = [];
+
+    for (const cue of rawCues) {
+      if (cue.startSec - winStart >= WINDOW && winTexts.length > 0) {
+        grouped.push({ timestamp: secsToTimecode(winStart), text: winTexts.join(' ') });
+        winStart = cue.startSec;
+        winTexts = [];
+      }
+      winTexts.push(cue.text);
+    }
+    if (winTexts.length > 0) {
+      grouped.push({ timestamp: secsToTimecode(winStart), text: winTexts.join(' ') });
+    }
+    return grouped;
   }
 
-  // Plain text - split into paragraphs
-  const paragraphs = content.split(/\n{2,}/).filter(p => p.trim());
-  return paragraphs.map(p => ({ text: p.trim() }));
+  if (format === 'srt') {
+    const rawCues = [];
+    const cueBlocks = content.replace(/\r\n/g, '\n').split(/\n\s*\n/);
+    for (const block of cueBlocks) {
+      const lines = block.trim().split('\n');
+      const timingIdx = lines.findIndex(l => l.includes('-->'));
+      if (timingIdx === -1) continue;
+      const startMatch = lines[timingIdx].match(/(\d{1,2}:\d{2}:\d{2}[,.]?\d*)/);
+      if (!startMatch) continue;
+      const startSec = parseVTTTimestamp(startMatch[1].replace(',', '.'));
+      const text = lines.slice(timingIdx + 1).map(stripVTTTags).filter(Boolean).join(' ');
+      if (text) rawCues.push({ startSec, text });
+    }
+    // Group SRT into 60-second paragraphs too
+    const WINDOW = 60;
+    const grouped = [];
+    if (!rawCues.length) return [];
+    let winStart = rawCues[0].startSec;
+    let winTexts = [];
+    for (const cue of rawCues) {
+      if (cue.startSec - winStart >= WINDOW && winTexts.length > 0) {
+        grouped.push({ timestamp: secsToTimecode(winStart), text: winTexts.join(' ') });
+        winStart = cue.startSec;
+        winTexts = [];
+      }
+      winTexts.push(cue.text);
+    }
+    if (winTexts.length > 0) grouped.push({ timestamp: secsToTimecode(winStart), text: winTexts.join(' ') });
+    return grouped;
+  }
+
+  // Plain text — split into paragraphs, support [MM:SS] timestamp prefix
+  const paragraphs = content.split(/\n{1,}/).filter(p => p.trim());
+  return paragraphs.map(p => {
+    const m = p.trim().match(/^\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.*)/s);
+    if (m) return { timestamp: m[1], text: m[2].trim() };
+    return { text: p.trim() };
+  }).filter(b => b.text);
 }
 
 export default function EpisodePage() {
