@@ -8,6 +8,7 @@ const path = require('path');
 const podcastsRouter = require('./routes/podcasts');
 const episodesRouter = require('./routes/episodes');
 const searchRouter = require('./routes/search');
+const uploadRouter = require('./routes/upload');
 
 const app = express();
 const PORT = process.env.PORT || 4010;
@@ -18,7 +19,12 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 app.use(compression());
-app.use(cors());
+// Allow all origins including chrome-extension://
+app.use(cors({
+  origin: (origin, callback) => callback(null, true),
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -26,6 +32,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/podcasts', podcastsRouter);
 app.use('/api/episodes', episodesRouter);
 app.use('/api/search', searchRouter);
+app.use('/api', uploadRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -376,3 +376,90 @@ describe('Data integrity', () => {
     expect(res.body.transcript_count).toBe(1);
   });
 });
+
+describe('Upload API (anonymous)', () => {
+  const EPISODE_URL = 'https://youtube.com/watch?v=test123';
+
+  test('POST /api/upload creates podcast + episode + transcript', async () => {
+    const res = await request(app).post('/api/upload').send({
+      podcast: { name: 'EchoShell Test Podcast', host: 'Test Host', category: '科技', language: 'zh' },
+      episode: { title: 'Test Episode via Upload', episode_url: EPISODE_URL },
+      transcript: { content: '这是通过插件上传的转译文字稿。', language: 'zh', source: 'asr' }
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.episodeId).toBeDefined();
+    expect(res.body.podcastId).toBeDefined();
+    expect(res.body.transcriptId).toBeDefined();
+  });
+
+  test('GET /api/check?url= finds uploaded transcript', async () => {
+    const res = await request(app).get(`/api/check?url=${encodeURIComponent(EPISODE_URL)}`);
+    expect(res.status).toBe(200);
+    expect(res.body.found).toBe(true);
+    expect(res.body.episodeId).toBeDefined();
+    expect(res.body.podcastName).toBe('EchoShell Test Podcast');
+    expect(res.body.episodeTitle).toBe('Test Episode via Upload');
+  });
+
+  test('GET /api/check?url= returns not found for unknown URL', async () => {
+    const res = await request(app).get('/api/check?url=https://unknown.example.com/episode');
+    expect(res.status).toBe(200);
+    expect(res.body.found).toBe(false);
+  });
+
+  test('GET /api/check requires url param', async () => {
+    const res = await request(app).get('/api/check');
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/upload requires podcast.name', async () => {
+    const res = await request(app).post('/api/upload').send({
+      episode: { title: 'No podcast name' },
+      transcript: { content: 'Some text' }
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/upload requires episode.title', async () => {
+    const res = await request(app).post('/api/upload').send({
+      podcast: { name: 'Valid Podcast' },
+      transcript: { content: 'Some text' }
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/upload requires transcript.content', async () => {
+    const res = await request(app).post('/api/upload').send({
+      podcast: { name: 'Valid Podcast' },
+      episode: { title: 'Valid Episode' }
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/upload finds existing podcast by name (case-insensitive)', async () => {
+    // Upload with same podcast name (different case)
+    const res = await request(app).post('/api/upload').send({
+      podcast: { name: 'echoshell test podcast' }, // lowercase
+      episode: { title: 'Another Episode', episode_url: 'https://youtube.com/watch?v=other456' },
+      transcript: { content: 'Another transcript.' }
+    });
+    expect(res.status).toBe(201);
+    // Should reuse same podcast (check via GET)
+    const pod = await request(app).get(`/api/podcasts/${res.body.podcastId}`);
+    expect(pod.body.episode_count).toBe(2);
+  });
+
+  test('POST /api/upload replaces transcript if episode URL already exists', async () => {
+    // Re-upload the same episode URL
+    const res = await request(app).post('/api/upload').send({
+      podcast: { name: 'EchoShell Test Podcast' },
+      episode: { title: 'Test Episode via Upload', episode_url: EPISODE_URL },
+      transcript: { content: '更新后的转译文字稿。', source: 'asr' }
+    });
+    expect(res.status).toBe(201);
+    // Verify the transcript was updated
+    const transcriptRes = await request(app).get(`/api/episodes/${res.body.episodeId}/transcript`);
+    expect(transcriptRes.body.content).toBe('更新后的转译文字稿。');
+  });
+});

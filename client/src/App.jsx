@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import PodcastPage from './pages/PodcastPage';
 import EpisodePage from './pages/EpisodePage';
 import SearchPage from './pages/SearchPage';
+import UploadPage from './pages/UploadPage';
 import './styles/App.css';
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/episodes/:id" element={<EpisodePage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/category/:category" element={<HomePage />} />
+            <Route path="/upload" element={<UploadPage />} />
           </Routes>
         </main>
       </div>
