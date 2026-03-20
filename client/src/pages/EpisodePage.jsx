@@ -159,9 +159,13 @@ function parseTranscript(content, format) {
 // Render transcript text: convert **[Speaker]** to styled elements
 function renderTranscriptText(text) {
   if (!text) return null;
+  // Normalize: **[Speaker] [MM:SS]** -> **[Speaker]** [MM:SS]
+  let normalized = text.replace(/\*\*\[([^\]]+)\]\s*\[(\d{1,3}:\d{2})\]\*\*/g, '**[$1]** [$2]');
+  // Also handle **[Speaker] [HH:MM:SS]**
+  normalized = normalized.replace(/\*\*\[([^\]]+)\]\s*\[(\d{1,3}:\d{2}:\d{2})\]\*\*/g, '**[$1]** [$2]');
   // Split on **[...]** speaker tags
-  const parts = text.split(/(\*\*\[[^\]]+\]\*\*)/g);
-  if (parts.length <= 1) return text;
+  const parts = normalized.split(/(\*\*\[[^\]]+\]\*\*)/g);
+  if (parts.length <= 1) return normalized;
   return parts.map((part, i) => {
     const m = part.match(/^\*\*\[([^\]]+)\]\*\*$/);
     if (m) return <span key={i} className="speaker-tag">{m[1]}</span>;
