@@ -29,6 +29,12 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Prevent caching of API responses
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+
 // API Routes
 app.use('/api/podcasts', podcastsRouter);
 app.use('/api/episodes', episodesRouter);
