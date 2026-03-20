@@ -43,6 +43,7 @@ function stripVTTTags(text) {
     .replace(/<\/?[a-z][^>]*>/gi, '')                   // VTT/HTML tags
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ').replace(/&apos;/g, "'").replace(/&quot;/g, '"')
+    .replace(/<\/?[a-z][^>]*>/gi, '')                   // Strip tags again after entity decode
     .trim();
 }
 
@@ -501,6 +502,38 @@ export default function EpisodePage() {
               )}
             </dl>
           </div>
+
+          {/* Language versions card */}
+          {availableLangs.length > 0 && (
+            <div className="ep-aside-card ep-aside-card--lang">
+              <h3 className="aside-title">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M2 12h20"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                可用语言文稿
+              </h3>
+              <div className="lang-list">
+                {availableLangs.map(lang => (
+                  <button
+                    key={lang}
+                    className={`lang-list-btn ${selectedLang === lang ? 'lang-list-btn--active' : ''}`}
+                    onClick={() => switchLang(lang)}
+                  >
+                    <span className="lang-list-dot" />
+                    {langLabel(lang)}
+                    {selectedLang === lang && <span className="lang-list-current">当前</span>}
+                  </button>
+                ))}
+              </div>
+              {availableLangs.length === 1 && (
+                <p className="aside-desc" style={{ marginTop: 8 }}>
+                  仅有 {langLabel(availableLangs[0])} 版本
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Community contribution card */}
           {!transcript && (
