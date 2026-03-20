@@ -155,6 +155,19 @@ function parseTranscript(content, format) {
   }).filter(b => b.text);
 }
 
+// Render transcript text: convert **[Speaker]** to styled elements
+function renderTranscriptText(text) {
+  if (!text) return null;
+  // Split on **[...]** speaker tags
+  const parts = text.split(/(\*\*\[[^\]]+\]\*\*)/g);
+  if (parts.length <= 1) return text;
+  return parts.map((part, i) => {
+    const m = part.match(/^\*\*\[([^\]]+)\]\*\*$/);
+    if (m) return <span key={i} className="speaker-tag">{m[1]}</span>;
+    return part;
+  });
+}
+
 // Human-readable language names
 const LANG_NAMES = {
   zh: '中文', 'zh-Hans': '中文(简体)', 'zh-Hant': '中文(繁体)',
@@ -173,6 +186,8 @@ export default function EpisodePage() {
   const [transcript, setTranscript] = useState(null);
   const [availableLangs, setAvailableLangs] = useState([]);
   const [selectedLang, setSelectedLang] = useState(null);
+  const [availableSources, setAvailableSources] = useState([]);
+  const [isPolished, setIsPolished] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fontSize, setFontSize] = useState('md');
   const [showContribute, setShowContribute] = useState(false);
@@ -190,6 +205,10 @@ export default function EpisodePage() {
       if (tr?.available_languages) {
         setAvailableLangs(tr.available_languages);
         setSelectedLang(tr.language);
+      }
+      if (tr?.available_sources?.length > 0) {
+        setAvailableSources(tr.available_sources);
+        setIsPolished(tr.source === 'llm_polish');
       }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [id]);
@@ -223,7 +242,26 @@ export default function EpisodePage() {
     setSelectedLang(lang);
     fetch(`/api/episodes/${id}/transcript?lang=${encodeURIComponent(lang)}`)
       .then(r => r.ok ? r.json() : null)
-      .then(tr => { if (tr) setTranscript(tr); });
+      .then(tr => {
+        if (tr) {
+          setTranscript(tr);
+          setIsPolished(tr.source === 'llm_polish');
+        }
+      });
+  }
+
+  // Toggle between polished and raw versions
+  function togglePolished() {
+    const wantSource = isPolished ? 'raw' : 'llm_polish';
+    fetch(`/api/episodes/${id}/transcript?source=${wantSource}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(tr => {
+        if (tr) {
+          setTranscript(tr);
+          setIsPolished(tr.source === 'llm_polish');
+          setSelectedLang(tr.language);
+        }
+      });
   }
 
   const blocks = transcript ? parseTranscript(transcript.content, transcript.format) : [];
@@ -359,7 +397,14 @@ export default function EpisodePage() {
                       <div className="transcript-stats">
                         <span>{wordCount.toLocaleString()} 字</span>
                         <span>约 {readTime} 分钟</span>
-                        <span className="transcript-source">来源: {transcript.source}</span>
+                        <span className="transcript-source">
+                          来源: {transcript.source === 'llm_polish' ? 'AI精修' : transcript.source}
+                        </span>
+                        {availableSources.length > 1 && (
+                          <button className="polish-toggle" onClick={togglePolished}>
+                            {isPolished ? '查看原始版' : '查看精修版'}
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="toolbar-right">
@@ -425,7 +470,7 @@ export default function EpisodePage() {
                         {block.timestamp && (
                           <span className="block-timestamp">{block.timestamp}</span>
                         )}
-                        <p className="block-text">{block.text}</p>
+                        <p className="block-text">{renderTranscriptText(block.text)}</p>
                       </div>
                     ))}
                   </div>

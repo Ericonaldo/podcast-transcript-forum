@@ -85,18 +85,33 @@ router.get('/:id/transcript', (req, res) => {
   const all = db.prepare('SELECT * FROM transcripts WHERE episode_id = ? ORDER BY created_at ASC').all(req.params.id);
   if (!all.length) return res.status(404).json({ error: 'Transcript not found' });
 
-  const availableLanguages = [...new Set(all.map(t => t.language))];
+  // Build available versions: group by language, prefer polished sources
+  const byLang = {};
+  for (const t of all) {
+    if (!byLang[t.language] || t.source === 'llm_polish') {
+      byLang[t.language] = t;
+    }
+  }
+  const availableLanguages = Object.keys(byLang);
+  // Also expose raw vs polished for same language
+  const hasPolished = all.some(t => t.source === 'llm_polish');
+  const availableSources = hasPolished ? [...new Set(all.map(t => t.source))] : [];
 
   let transcript;
   const requestedLang = req.query.lang;
-  if (requestedLang) {
-    transcript = all.find(t => t.language === requestedLang) || all[0];
+  const requestedSource = req.query.source; // 'llm_polish' or 'raw'
+  if (requestedLang || requestedSource) {
+    const candidates = all.filter(t =>
+      (!requestedLang || t.language === requestedLang) &&
+      (!requestedSource || (requestedSource === 'raw' ? t.source !== 'llm_polish' : t.source === requestedSource))
+    );
+    transcript = candidates[0] || all[0];
   } else {
-    // Default: prefer the original language (first inserted / oldest)
-    transcript = all[0];
+    // Default: prefer llm_polish version, then first by language
+    transcript = all.find(t => t.source === 'llm_polish') || all[0];
   }
 
-  res.json({ ...transcript, available_languages: availableLanguages });
+  res.json({ ...transcript, available_languages: availableLanguages, available_sources: availableSources });
 });
 
 // GET /api/episodes/:id/transcripts — list all language versions
