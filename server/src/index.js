@@ -37,7 +37,7 @@ const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '../../client/
 const fs = require('fs');
 if (fs.existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR));
-  app.get('*', (req, res) => {
+  app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(STATIC_DIR, 'index.html'));
   });
 }
