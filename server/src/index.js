@@ -50,7 +50,7 @@ if (fs.existsSync(STATIC_DIR)) {
   const indexHtml = fs.readFileSync(path.join(STATIC_DIR, 'index.html'), 'utf8');
   app.use((req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
-    res.type('html').send(indexHtml);
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate').type('html').send(indexHtml);
   });
 }
 
