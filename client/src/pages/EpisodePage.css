@@ -602,7 +602,7 @@
 /* ── Reading mode ── */
 .ep-content-layout--reading {
   grid-template-columns: 1fr !important;
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
