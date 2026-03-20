@@ -76,17 +76,17 @@
   border-color: rgba(99, 102, 241, 0.3);
 }
 
-.podcast-lang-section {
-  margin-bottom: 32px;
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.podcast-lang-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0 0 14px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .podcast-grid {

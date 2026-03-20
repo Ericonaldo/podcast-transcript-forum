@@ -11,6 +11,7 @@ export default function HomePage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [sort, setSort] = useState('name');
+  const [langFilter, setLangFilter] = useState('all'); // 'all' | 'zh' | 'en'
 
   useEffect(() => {
     setPage(1);
@@ -50,20 +51,38 @@ export default function HomePage() {
           )}
         </div>
         <div className="sort-bar">
-          <span className="sort-label">排序：</span>
-          {[
-            { value: 'name', label: '名称' },
-            { value: 'episodes', label: '期数' },
-            { value: 'created', label: '添加时间' },
-          ].map(s => (
-            <button
-              key={s.value}
-              className={`sort-btn ${sort === s.value ? 'sort-btn--active' : ''}`}
-              onClick={() => setSort(s.value)}
-            >
-              {s.label}
-            </button>
-          ))}
+          <div className="filter-group">
+            <span className="sort-label">语言：</span>
+            {[
+              { value: 'all', label: '全部' },
+              { value: 'zh', label: '中文' },
+              { value: 'en', label: 'English' },
+            ].map(f => (
+              <button
+                key={f.value}
+                className={`sort-btn ${langFilter === f.value ? 'sort-btn--active' : ''}`}
+                onClick={() => setLangFilter(f.value)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="filter-group">
+            <span className="sort-label">排序：</span>
+            {[
+              { value: 'name', label: '名称' },
+              { value: 'episodes', label: '期数' },
+              { value: 'created', label: '添加时间' },
+            ].map(s => (
+              <button
+                key={s.value}
+                className={`sort-btn ${sort === s.value ? 'sort-btn--active' : ''}`}
+                onClick={() => setSort(s.value)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -82,33 +101,17 @@ export default function HomePage() {
         </div>
       )}
 
-      {(() => {
-        const zhPodcasts = podcasts.filter(p => p.language && p.language.startsWith('zh'));
-        const enPodcasts = podcasts.filter(p => !p.language || !p.language.startsWith('zh'));
-        const sections = [];
-        if (zhPodcasts.length > 0) sections.push({ label: '中文播客', podcasts: zhPodcasts });
-        if (enPodcasts.length > 0) sections.push({ label: 'English Podcasts', podcasts: enPodcasts });
-        // If no language split possible, show flat
-        if (sections.length <= 1 && podcasts.length > 0) {
-          return (
-            <div className="podcast-grid">
-              {podcasts.map(podcast => (
-                <PodcastCard key={podcast.id} podcast={podcast} />
-              ))}
-            </div>
-          );
-        }
-        return sections.map(section => (
-          <div key={section.label} className="podcast-lang-section">
-            <h2 className="podcast-lang-title">{section.label}</h2>
-            <div className="podcast-grid">
-              {section.podcasts.map(podcast => (
-                <PodcastCard key={podcast.id} podcast={podcast} />
-              ))}
-            </div>
-          </div>
-        ));
-      })()}
+      <div className="podcast-grid">
+        {podcasts
+          .filter(p => {
+            if (langFilter === 'all') return true;
+            if (langFilter === 'zh') return p.language && p.language.startsWith('zh');
+            return !p.language || !p.language.startsWith('zh');
+          })
+          .map(podcast => (
+            <PodcastCard key={podcast.id} podcast={podcast} />
+          ))}
+      </div>
       {loading && (
         <div className="podcast-grid">
           {Array.from({ length: 6 }).map((_, i) => (
