@@ -311,21 +311,26 @@
 }
 
 .transcript-block.has-timestamp {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   border-left-color: var(--accent-primary);
   padding-left: 14px;
 }
 
 .block-timestamp {
   display: inline-block;
+  flex-shrink: 0;
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--accent-secondary);
   background: var(--accent-glow);
   padding: 2px 8px;
   border-radius: 10px;
-  margin-bottom: 8px;
+  margin-top: 3px;
   border: 1px solid rgba(99,102,241,0.2);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .block-text {
