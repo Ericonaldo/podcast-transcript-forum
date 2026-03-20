@@ -52,11 +52,11 @@ const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '../../client/
 const fs = require('fs');
 if (fs.existsSync(STATIC_DIR)) {
   app.use(express.static(STATIC_DIR));
-  // SPA catch-all: serve index.html for non-API routes
-  const indexHtml = fs.readFileSync(path.join(STATIC_DIR, 'index.html'), 'utf8');
+  // SPA catch-all: serve index.html for non-API routes (read fresh each time to avoid stale cache)
+  const indexPath = path.join(STATIC_DIR, 'index.html');
   app.use((req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate').type('html').send(indexHtml);
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate').type('html').sendFile(indexPath);
   });
 }
 
