@@ -4,7 +4,7 @@
 你需要完成产品的界面优化，功能测试
 **注意**：需要设计多种测试用例，并在实现后保证工具完全通过测试。
 
-在实现完forum的核心功能后，参考/home/mhliu/podcast_chrome中的工具，使用工具爬取市面上能找到的所有podcast的文本，把能找到podcast但是需要osr或asr进一步提取文稿的，写入文档中便于我后面处理。
+在实现完forum的核心功能后，参考/home/mhliu/podcast_chrome中的工具，使用工具爬取市面上能找到的所有能直接获得文本的podcast，放入论坛数据库，把能找到podcast但是需要osr或asr进一步提取文稿的，写入文档中便于我后面处理。原则，as many as possible.
 
 git 仓库：git@github.com:Ericonaldo/podcast-transcript-forum.git
 
