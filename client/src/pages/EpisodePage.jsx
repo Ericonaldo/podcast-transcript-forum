@@ -198,6 +198,7 @@ export default function EpisodePage() {
   const [showContribute, setShowContribute] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [readingMode, setReadingMode] = useState(false);
   const transcriptRef = useRef(null);
   const playerRef = useRef(null);
   const [activeBlockIndex, setActiveBlockIndex] = useState(-1);
@@ -435,7 +436,22 @@ export default function EpisodePage() {
       </div>
 
       {/* Main content area */}
-      <div className="ep-content-layout">
+      {/* Floating reading mode toggle */}
+      {transcript && (
+        <button
+          className={`reading-mode-fab ${readingMode ? 'reading-mode-fab--active' : ''}`}
+          onClick={() => setReadingMode(v => !v)}
+          title={readingMode ? '切换到播放联动模式' : '切换到纯享阅读模式'}
+        >
+          {readingMode ? (
+            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>联动</>
+          ) : (
+            <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯享</>
+          )}
+        </button>
+      )}
+
+      <div className={`ep-content-layout ${readingMode ? 'ep-content-layout--reading' : ''}`}>
         {/* Transcript */}
         <div className="ep-transcript-area">
           {transcript ? (
@@ -532,7 +548,7 @@ export default function EpisodePage() {
                     {blocks.map((block, idx) => (
                       <div
                         key={idx}
-                        className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''} ${idx === activeBlockIndex ? 'transcript-block--active' : ''} ${block.timestamp && playerRef.current?.canSeek ? 'transcript-block--clickable' : ''}`}
+                        className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''} ${!readingMode && idx === activeBlockIndex ? 'transcript-block--active' : ''} ${!readingMode && block.timestamp && playerRef.current?.canSeek ? 'transcript-block--clickable' : ''} ${readingMode ? 'transcript-block--reading' : ''}`}
                         onClick={() => handleBlockClick(block)}
                       >
                         {block.timestamp && (
@@ -580,7 +596,8 @@ export default function EpisodePage() {
           )}
         </div>
 
-        {/* Sidebar info */}
+        {/* Sidebar info — hidden in reading mode */}
+        {!readingMode && (
         <aside className="ep-aside">
           {/* Embedded Media Player */}
           {hasPlayer && (
@@ -704,6 +721,7 @@ export default function EpisodePage() {
             </div>
           )}
         </aside>
+        )}
       </div>
     </div>
   );
