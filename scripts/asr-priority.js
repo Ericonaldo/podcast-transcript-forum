@@ -144,17 +144,12 @@ async function processEpisode(db, ep, tmpDir) {
     const size = (fs.statSync(downloaded).size / 1024 / 1024).toFixed(0);
     process.stdout.write(`${size}MB `);
 
-    // ASR
+    // ASR only (polish runs separately/async)
     process.stdout.write('ASR... ');
     const segments = runWhisper(downloaded);
     const rawText = segsToText(segments);
     db.prepare("INSERT OR REPLACE INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'asr')").run(ep.id, rawText);
-
-    // Polish
-    process.stdout.write('Polish... ');
-    const { content, chunks } = await polish(rawText, ep.podcast_name);
-    db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'llm_polish')").run(ep.id, content);
-    return `OK (${segments.length} segs, ${chunks}ch)`;
+    return `OK (${segments.length} segs, ${(rawText.length/1000).toFixed(0)}k)`;
   } finally {
     // Cleanup
     const base = audioPath.replace(/\.[^.]+$/, '');
