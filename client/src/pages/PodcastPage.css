@@ -336,6 +336,25 @@
   flex-shrink: 0;
 }
 
+.video-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff4444;
+  transition: all var(--transition);
+}
+
+.video-btn:hover {
+  background: rgba(255, 0, 0, 0.25);
+  transform: scale(1.1);
+  color: #ff2222;
+  box-shadow: 0 0 12px rgba(255, 0, 0, 0.2);
+}
+
 .play-btn {
   width: 32px;
   height: 32px;

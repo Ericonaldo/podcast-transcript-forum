@@ -235,6 +235,22 @@ function EpisodeRow({ episode }) {
         </div>
       </div>
       <div className="episode-row-action">
+        {episode.episode_url && (
+          <a
+            href={episode.episode_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="video-btn"
+            onClick={e => e.stopPropagation()}
+            title="观看视频"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <polyline points="8 21 12 17 16 21" />
+              <polygon points="10 8 15 11 10 14 10 8" fill="currentColor" stroke="none" />
+            </svg>
+          </a>
+        )}
         {episode.audio_url && (
           <a
             href={episode.audio_url}
@@ -242,7 +258,7 @@ function EpisodeRow({ episode }) {
             rel="noopener noreferrer"
             className="play-btn"
             onClick={e => e.stopPropagation()}
-            title="收听"
+            title="收听音频"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 3 19 12 5 21 5 3" />
