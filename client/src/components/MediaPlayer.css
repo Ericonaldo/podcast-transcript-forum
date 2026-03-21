@@ -4,6 +4,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* Badge */
@@ -48,15 +49,14 @@
 /* Embed containers */
 .media-player__embed--video {
   position: relative;
+  width: 100%;
   aspect-ratio: 16 / 9;
   background: #000;
 }
 
 .media-player__embed--video iframe,
 .media-player__embed--video .media-player__yt-container {
-  position: absolute;
-  top: 0;
-  left: 0;
+  display: block;
   width: 100%;
   height: 100%;
 }
