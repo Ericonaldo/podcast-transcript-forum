@@ -63,6 +63,12 @@
   --reading-fab-color: #525d73;
   --block-border: rgba(0,0,0,0.06);
   --header-bg: rgba(245, 246, 248, 0.92);
+  --hero-gradient: linear-gradient(
+    to bottom,
+    rgba(245,246,248,0.6) 0%,
+    rgba(245,246,248,0.9) 60%,
+    rgba(245,246,248,1) 100%
+  );
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
