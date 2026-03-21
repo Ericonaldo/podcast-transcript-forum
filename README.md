@@ -1,6 +1,21 @@
-# PodScribe
+<p align="center">
+  <img src="client/public/favicon.svg" width="80" height="80" alt="PodScribe Logo">
+</p>
 
-A modern podcast transcript forum for browsing, searching, and contributing podcast transcripts across multiple languages.
+<h1 align="center">PodScribe</h1>
+
+<p align="center">
+  A modern podcast transcript forum for browsing, searching, and contributing podcast transcripts across multiple languages.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React 19">
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="Vite 8">
+  <img src="https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white" alt="Express 5">
+  <img src="https://img.shields.io/badge/SQLite-FTS5-003B57?logo=sqlite&logoColor=white" alt="SQLite FTS5">
+  <img src="https://img.shields.io/badge/Tests-52%20passed-brightgreen?logo=jest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/License-ISC-blue" alt="License">
+</p>
 
 ## Screenshots
 
