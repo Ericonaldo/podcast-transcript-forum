@@ -156,16 +156,18 @@ function parseTranscript(content, format) {
   }).filter(b => b.text);
 }
 
-// Render transcript text: convert **[Speaker]** to styled tags, **inline** to bold
+// Render transcript text: convert **[Speaker]** to styled tags, **inline** to bold, strip inline timestamps
 function renderTranscriptText(text) {
   if (!text) return null;
   let n = text;
-  // Normalize: **[MM:SS] Name**: -> **[Name]** [MM:SS]
-  n = n.replace(/\*\*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s*([^*]+?)\*\*[：:]*\s*/g, '**[$2]** [$1] ');
-  // Normalize: **[Speaker] [MM:SS]** -> **[Speaker]** [MM:SS]
-  n = n.replace(/\*\*\[([^\]]+)\]\s*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\*\*/g, '**[$1]** [$2]');
+  // Normalize: **[MM:SS] Name**: -> **[Name]**
+  n = n.replace(/\*\*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s*([^*]+?)\*\*[：:]*\s*/g, '**[$2]** ');
+  // Normalize: **[Speaker] [MM:SS]** -> **[Speaker]**
+  n = n.replace(/\*\*\[([^\]]+)\]\s*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\*\*/g, '**[$1]**');
   // Normalize: **Name**: -> **[Name]** (at line/segment start)
   n = n.replace(/^(\s*)\*\*([^*\[\]]{1,30}?)\*\*[：:]\s*/gm, '$1**[$2]** ');
+  // Strip inline [MM:SS] timestamps (after speaker tags or standalone)
+  n = n.replace(/\s*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s*/g, ' ');
   // Split on **[...]** speaker tags and **inline** bold
   const parts = n.split(/(\*\*\[[^\]]+\]\*\*|\*\*[^*]+\*\*)/g);
   if (parts.length <= 1) return n;
