@@ -129,7 +129,10 @@ async function polish(rawText, podcastName) {
 }
 
 async function processEpisode(db, ep, tmpDir) {
-  const audioUrl = ep.episode_url?.includes('youtube') ? ep.episode_url : ep.audio_url;
+  // Prefer YouTube URL for download (audio_url may have YouTube, episode_url may have B站)
+  const audioUrl = (ep.audio_url?.includes('youtube') ? ep.audio_url : null)
+    || (ep.episode_url?.includes('youtube') ? ep.episode_url : null)
+    || ep.audio_url;
   if (!audioUrl) return 'no source';
 
   const audioPath = path.join(tmpDir, `ep${ep.id}.mp3`);
@@ -170,7 +173,7 @@ async function main() {
     FROM episodes e JOIN podcasts p ON p.id=e.podcast_id
     WHERE p.id IN (${PRIORITY_IDS.join(',')})
     AND e.id NOT IN (SELECT episode_id FROM transcripts)
-    AND (e.episode_url LIKE 'https://www.youtube.com%' OR e.audio_url IS NOT NULL)
+    AND (e.episode_url LIKE 'https://www.youtube.com%' OR e.audio_url IS NOT NULL OR e.episode_url LIKE 'https://www.bilibili.com%')
     ORDER BY p.id, e.id
   `).all();
 
