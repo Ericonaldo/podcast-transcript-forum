@@ -67,7 +67,7 @@ router.get('/:id', (req, res) => {
   const db = getDb();
   const podcast = db.prepare(`
     SELECT p.*, COUNT(DISTINCT e.id) as episode_count,
-           COUNT(DISTINCT t.id) as transcript_count
+           COUNT(DISTINCT CASE WHEN t.id IS NOT NULL THEN e.id END) as transcript_count
     FROM podcasts p
     LEFT JOIN episodes e ON e.podcast_id = p.id
     LEFT JOIN transcripts t ON t.episode_id = e.id
