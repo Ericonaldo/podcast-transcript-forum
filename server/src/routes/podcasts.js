@@ -138,10 +138,6 @@ router.get('/:id/episodes', (req, res) => {
     LIMIT ? OFFSET ?
   `).all(req.params.id, parseInt(limit), offset);
 
-  if (episodes.length > 0) {
-    console.log(`[DEBUG] podcast ${req.params.id} episodes[0]: id=${episodes[0].id} ep_url=${episodes[0].episode_url} pub=${episodes[0].published_date}`);
-  }
-
   res.json({
     data: episodes,
     pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) }
