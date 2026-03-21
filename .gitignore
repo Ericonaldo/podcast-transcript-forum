@@ -7,3 +7,7 @@ data/*.db
 .DS_Store
 .agent-worktrees/
 CLAUDE.md
+data/podcast.db.backup
+data/*.db-shm
+data/*.db-wal
+data/podcast_corrupt*
