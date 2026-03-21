@@ -137,18 +137,30 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
+  padding: 8px 18px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-focus);
   border-radius: var(--radius-md);
   font-size: 13px;
-  color: var(--text-secondary);
+  font-weight: 500;
+  color: var(--text-primary);
   transition: all var(--transition);
 }
 
 .media-player__ext-link:hover {
-  color: var(--text-primary);
-  border-color: var(--border-focus);
+  color: var(--accent-secondary);
+  border-color: var(--accent-primary);
+  background: var(--accent-glow);
+}
+
+/* Audio element dark mode fix */
+.media-player__audio-el {
+  filter: invert(0);
+  border-radius: 0;
+}
+
+[data-theme="light"] .media-player__audio-el {
+  filter: none;
 }
 
 /* Platform-specific border glow */
