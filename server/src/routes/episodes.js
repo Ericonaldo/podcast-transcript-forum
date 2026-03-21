@@ -254,7 +254,50 @@ router.post('/:id/transcript/polish', async (req, res) => {
       results.push(polished);
     }
 
-    const polishedContent = results.join('\n\n');
+    let polishedContent = results.join('\n\n');
+
+    // Post-process: unify speaker names across chunks
+    // Extract all speaker names and their frequencies
+    const speakerRegex = /\*\*(.+?)[：:]\*\*/g;
+    const speakerCounts = {};
+    let m;
+    while ((m = speakerRegex.exec(polishedContent)) !== null) {
+      speakerCounts[m[1]] = (speakerCounts[m[1]] || 0) + 1;
+    }
+    // Build mapping: generic names -> real names
+    const genericToReal = {};
+    const realNames = Object.keys(speakerCounts).filter(n =>
+      !['主持人', '嘉宾', '嘉宾A', '嘉宾B', '嘉宾C', 'Host', 'Guest', 'Guest A', 'Guest B'].includes(n)
+    );
+    // Try to map generics to real names by frequency patterns
+    const generics = Object.keys(speakerCounts).filter(n =>
+      ['主持人', '嘉宾', '嘉宾A', '嘉宾B', '嘉宾C', 'Host', 'Guest', 'Guest A', 'Guest B'].includes(n)
+    );
+    if (realNames.length > 0 && generics.length > 0) {
+      // Sort real names and generics by frequency (desc)
+      const sortedReal = realNames.sort((a, b) => speakerCounts[b] - speakerCounts[a]);
+      const sortedGeneric = generics.sort((a, b) => speakerCounts[b] - speakerCounts[a]);
+      // Map host generics to most frequent real name that looks like a host
+      for (const g of sortedGeneric) {
+        if (['主持人', 'Host'].includes(g) && sortedReal.length > 0) {
+          // Find a host-like real name (first one mentioned, or Monica-like)
+          genericToReal[g] = sortedReal.find(n => speakerCounts[n] <= 10) || sortedReal[0];
+        } else if (['嘉宾', '嘉宾A', 'Guest', 'Guest A'].includes(g) && sortedReal.length > 0) {
+          genericToReal[g] = sortedReal[0]; // Most frequent real name = main guest
+        } else if (['嘉宾B', 'Guest B'].includes(g) && sortedReal.length > 1) {
+          genericToReal[g] = sortedReal[1];
+        } else if (['嘉宾C', 'Guest C'].includes(g) && sortedReal.length > 2) {
+          genericToReal[g] = sortedReal[2];
+        }
+      }
+    }
+    // Apply replacements
+    for (const [generic, real] of Object.entries(genericToReal)) {
+      polishedContent = polishedContent.replace(
+        new RegExp(`\\*\\*${generic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[：:]\\*\\*`, 'g'),
+        `**${real}：**`
+      );
+    }
 
     // Save as new "polished" version (same language, source=llm_polish)
     const existingPolished = db.prepare('SELECT id FROM transcripts WHERE episode_id = ? AND source = ?').get(req.params.id, 'llm_polish');
