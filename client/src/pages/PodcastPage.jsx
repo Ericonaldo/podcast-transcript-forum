@@ -178,7 +178,54 @@ export default function PodcastPage() {
   );
 }
 
+function getPlatformInfo(url) {
+  if (!url) return null;
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return { name: 'YouTube', cls: 'yt-btn' };
+  if (url.includes('bilibili.com')) return { name: 'Bilibili', cls: 'bili-btn' };
+  if (url.includes('spotify.com')) return { name: 'Spotify', cls: 'spotify-btn' };
+  if (url.includes('xiaoyuzhoufm.com')) return { name: '小宇宙', cls: 'xyz-btn' };
+  if (url.includes('apple.com')) return { name: 'Apple', cls: 'apple-btn' };
+  if (/\.(mp3|m4a|wav|ogg|aac)(\?|$)/i.test(url)) return { name: '音频', cls: 'audio-btn' };
+  return { name: '链接', cls: 'link-btn' };
+}
+
+function PlatformIcon({ url, size = 16 }) {
+  if (!url) return null;
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8zM9.8 15.5V8.5l6.2 3.5-6.2 3.5z" />
+      </svg>
+    );
+  }
+  if (url.includes('bilibili.com')) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.8 2.8L16 6H8L6.2 2.8a1 1 0 0 0-1.7 1L5.8 6H4a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h16a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3h-1.8l1.3-2.2a1 1 0 0 0-1.7-1zM8 13a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm8 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" />
+      </svg>
+    );
+  }
+  // Default: play triangle for audio, external link for others
+  if (/\.(mp3|m4a|wav|ogg|aac)(\?|$)/i.test(url)) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <polygon points="5 3 19 12 5 21 5 3" />
+      </svg>
+    );
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
 function EpisodeRow({ episode }) {
+  const episodePlatform = getPlatformInfo(episode.episode_url);
+  const audioPlatform = getPlatformInfo(episode.audio_url);
+
   return (
     <Link to={`/episodes/${episode.id}`} className="episode-row">
       <div className="episode-row-left">
@@ -235,34 +282,28 @@ function EpisodeRow({ episode }) {
         </div>
       </div>
       <div className="episode-row-action">
-        {episode.episode_url && (
+        {episode.episode_url && episodePlatform && (
           <a
             href={episode.episode_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="video-btn"
+            className={`platform-btn ${episodePlatform.cls}`}
             onClick={e => e.stopPropagation()}
-            title="观看视频"
+            title={episodePlatform.name}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-              <polyline points="8 21 12 17 16 21" />
-              <polygon points="10 8 15 11 10 14 10 8" fill="currentColor" stroke="none" />
-            </svg>
+            <PlatformIcon url={episode.episode_url} />
           </a>
         )}
-        {episode.audio_url && (
+        {episode.audio_url && audioPlatform && (
           <a
             href={episode.audio_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="play-btn"
+            className={`platform-btn ${audioPlatform.cls}`}
             onClick={e => e.stopPropagation()}
-            title="收听音频"
+            title={`${audioPlatform.name}（备用）`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
+            <PlatformIcon url={episode.audio_url} />
           </a>
         )}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="arrow-icon">

@@ -336,42 +336,72 @@
   flex-shrink: 0;
 }
 
-.video-btn {
+.platform-btn {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(255, 0, 0, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ff4444;
   transition: all var(--transition);
 }
 
-.video-btn:hover {
-  background: rgba(255, 0, 0, 0.25);
+.platform-btn:hover {
   transform: scale(1.1);
-  color: #ff2222;
-  box-shadow: 0 0 12px rgba(255, 0, 0, 0.2);
 }
 
-.play-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+.platform-btn.yt-btn {
+  background: rgba(255, 0, 0, 0.12);
+  color: #ff4444;
+}
+.platform-btn.yt-btn:hover {
+  background: rgba(255, 0, 0, 0.22);
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.15);
+}
+
+.platform-btn.bili-btn {
+  background: rgba(0, 174, 236, 0.12);
+  color: #00aeec;
+}
+.platform-btn.bili-btn:hover {
+  background: rgba(0, 174, 236, 0.22);
+  box-shadow: 0 0 10px rgba(0, 174, 236, 0.15);
+}
+
+.platform-btn.spotify-btn {
+  background: rgba(30, 215, 96, 0.12);
+  color: #1ed760;
+}
+.platform-btn.spotify-btn:hover {
+  background: rgba(30, 215, 96, 0.22);
+  box-shadow: 0 0 10px rgba(30, 215, 96, 0.15);
+}
+
+.platform-btn.xyz-btn {
+  background: rgba(232, 67, 147, 0.12);
+  color: #e84393;
+}
+.platform-btn.xyz-btn:hover {
+  background: rgba(232, 67, 147, 0.22);
+  box-shadow: 0 0 10px rgba(232, 67, 147, 0.15);
+}
+
+.platform-btn.audio-btn {
   background: var(--accent-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: white;
-  transition: all var(--transition);
   padding-left: 2px;
 }
-
-.play-btn:hover {
+.platform-btn.audio-btn:hover {
   background: var(--accent-secondary);
-  transform: scale(1.1);
   box-shadow: var(--shadow-glow);
+}
+
+.platform-btn.link-btn {
+  background: rgba(var(--text-secondary-rgb, 150, 150, 150), 0.12);
+  color: var(--text-secondary);
+}
+.platform-btn.link-btn:hover {
+  background: rgba(var(--text-secondary-rgb, 150, 150, 150), 0.22);
 }
 
 .arrow-icon {
