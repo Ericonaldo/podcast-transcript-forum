@@ -173,22 +173,39 @@ router.post('/:id/transcript/polish', async (req, res) => {
   }
   if (!transcript) return res.status(404).json({ error: 'Transcript not found' });
 
-  const systemPrompt = `你是一个专业的播客文字稿编辑器。你的任务是将原始的语音转录文本优化为高质量、可读性强的文字稿。
+  const systemPrompt = `你是一个专业的播客文字稿编辑器。你的任务是将原始的语音转录文本（通常每行只有几秒钟的碎片化短句）优化为高质量、可读性强的长文字稿。
+
+## 核心任务
+将碎片化的短句合并成**完整的、连贯的段落**，每段至少3-5句话。
 
 ## 输出要求
-1. **添加标点符号**：在合适的位置添加逗号、句号、问号、感叹号等中/英文标点
-2. **识别说话人**：根据语境、语气、对话模式识别不同说话人，用 **[主持人]** **[嘉宾]** 或真实名字标记
-3. **分段**：按说话人轮次分段，每次换人说话另起一行
-4. **保留时间戳**：如果输入有时间戳，保留在每段开头
+1. **合并段落**：将同一个说话人的连续短句合并为完整段落。不要每句话一行！一个说话人的连续发言应该合并成一个大段落。
+2. **识别说话人**：根据语境、对话模式识别不同说话人。每段开头标记说话人，格式：**说话人名字：** （尝试从内容推断真实姓名，如果无法确定则用"主持人"、"嘉宾"、"嘉宾A/B"等）
+3. **添加标点符号**：在合适的位置添加逗号、句号、问号、感叹号等
+4. **保留段落首时间戳**：只在每个说话人段落开头保留一个时间戳，删除中间的时间戳
 5. **不要改变原意**：不添加、不删除、不改写内容含义
-6. **修正明显错误**：修正明显的语音识别错误
+6. **修正明显错误**：修正明显的语音识别错误（如人名、公司名、术语等）
+
+## 格式示例
+输入：
+[00:03] 欢迎来到Onboard
+[00:05] 真实的一线经验
+[00:08] 走心的投资思考
+[00:10] 我是Monica
+[00:12] 我是高宁
+[00:14] 今天我们来聊一下AI
+
+输出：
+[00:03] **Monica：** 欢迎来到OnBoard，真实的一线经验，走心的投资思考，我是Monica。
+
+[00:12] **高宁：** 我是高宁，今天我们来聊一下AI。
 
 只输出处理后的文稿，不要任何解释。`;
 
-  // Process in chunks (~3000 chars each)
+  // Process in chunks (~8000 chars each for better context)
   const rawContent = transcript.content;
   const lines = rawContent.split('\n').filter(l => l.trim());
-  const CHUNK_SIZE = 3000;
+  const CHUNK_SIZE = 8000;
   const chunks = [];
   let current = '';
   for (const line of lines) {
@@ -211,7 +228,7 @@ router.post('/:id/transcript/polish', async (req, res) => {
           headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: model || 'claude-3-5-haiku-20241022',
-            max_tokens: 4096,
+            max_tokens: 8192,
             system: systemPrompt,
             messages: [{ role: 'user', content: chunk }]
           })
@@ -227,7 +244,7 @@ router.post('/:id/transcript/polish', async (req, res) => {
           body: JSON.stringify({
             model: model || 'gpt-4o-mini',
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: chunk }],
-            max_tokens: 4096
+            max_tokens: 8192
           })
         });
         if (!resp.ok) throw new Error(`OpenAI API error: ${resp.status}`);
