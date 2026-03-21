@@ -129,8 +129,9 @@ async function polish(rawText, podcastName) {
 }
 
 async function processEpisode(db, ep, tmpDir) {
-  // Prefer YouTube URL for download (audio_url may have YouTube, episode_url may have B站)
-  const audioUrl = (ep.audio_url?.includes('youtube') ? ep.audio_url : null)
+  // Prefer B站 URL for download (YouTube bot detection), then YouTube, then audio_url
+  const audioUrl = (ep.episode_url?.includes('bilibili') ? ep.episode_url : null)
+    || (ep.audio_url?.includes('youtube') ? ep.audio_url : null)
     || (ep.episode_url?.includes('youtube') ? ep.episode_url : null)
     || ep.audio_url;
   if (!audioUrl) return 'no source';

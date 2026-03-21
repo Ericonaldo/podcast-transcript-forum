@@ -10,7 +10,10 @@
     "build": "cd client && npx vite build",
     "test": "jest --runInBand --forceExit",
     "seed": "node scripts/seed.js",
-    "crawl": "node scripts/crawl.js"
+    "crawl": "node scripts/crawl.js",
+    "update": "node scripts/update-podcasts.js",
+    "asr": "node scripts/asr-priority.js",
+    "polish": "node scripts/fast-polish.js"
   },
   "jest": {
     "testEnvironment": "node",
