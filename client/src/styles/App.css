@@ -215,7 +215,7 @@
   transition: border-color 0.15s;
 }
 
-.btn-ghost:hover { border-color: rgba(255,255,255,0.25); }
+.btn-ghost:hover { border-color: var(--border-focus); }
 
 .btn-spinner {
   display: inline-block;
