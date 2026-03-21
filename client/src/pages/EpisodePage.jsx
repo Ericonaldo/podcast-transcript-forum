@@ -555,11 +555,10 @@ export default function EpisodePage() {
                     {blocks.map((block, idx) => (
                       <div
                         key={idx}
-                        className={`transcript-block ${block.timestamp ? 'has-timestamp' : ''} ${!readingMode && idx === activeBlockIndex ? 'transcript-block--active' : ''} ${!readingMode && block.timestamp && playerRef.current?.canSeek ? 'transcript-block--clickable' : ''} ${readingMode ? 'transcript-block--reading' : ''}`}
-                        onClick={() => handleBlockClick(block)}
+                        className={`transcript-block ${readingMode ? 'transcript-block--reading' : ''}`}
                       >
-                        {block.timestamp && (
-                          <span className="block-timestamp" title={playerRef.current?.canSeek ? '点击跳转到此位置' : undefined}>
+                        {false && block.timestamp && (
+                          <span className="block-timestamp">
                             {block.timestamp}
                           </span>
                         )}
