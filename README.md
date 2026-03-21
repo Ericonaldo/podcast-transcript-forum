@@ -2,6 +2,22 @@
 
 A modern podcast transcript forum for browsing, searching, and contributing podcast transcripts across multiple languages.
 
+## Screenshots
+
+### Homepage
+
+| Dark | Light |
+|------|-------|
+| ![Homepage Dark](docs/screenshots/homepage-dark.png) | ![Homepage Light](docs/screenshots/homepage-light.png) |
+
+### Episode View
+
+![Episode Page](docs/screenshots/episode-dark.png)
+
+### Search
+
+![Search](docs/screenshots/search-dark.png)
+
 ## Features
 
 - **Multi-language transcripts** — View and switch between transcript languages; default display in the podcast's original language
