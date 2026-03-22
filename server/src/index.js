@@ -51,7 +51,14 @@ app.get('/api/health', (req, res) => {
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '../../client/dist');
 const fs = require('fs');
 if (fs.existsSync(STATIC_DIR)) {
-  app.use(express.static(STATIC_DIR));
+  app.use(express.static(STATIC_DIR, {
+    setHeaders: (res, filePath) => {
+      // Cache-bust HTML files so new deploys are picked up immediately
+      if (filePath.endsWith('.html')) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
   // SPA catch-all: serve index.html for non-API routes (read fresh each time to avoid stale cache)
   const indexPath = path.join(STATIC_DIR, 'index.html');
   app.use((req, res, next) => {
