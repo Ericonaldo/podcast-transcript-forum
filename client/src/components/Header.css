@@ -190,6 +190,23 @@
   background: var(--bg-tertiary);
 }
 
+.nav-link--github {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+
+.nav-link--github:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
 @media (max-width: 768px) {
   .menu-btn {
     display: flex;

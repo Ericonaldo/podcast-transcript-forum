@@ -7,6 +7,7 @@ import PodcastPage from './pages/PodcastPage';
 import EpisodePage from './pages/EpisodePage';
 import SearchPage from './pages/SearchPage';
 import UploadPage from './pages/UploadPage';
+import FeedbackButton from './components/FeedbackButton';
 import './styles/App.css';
 
 export default function App() {
@@ -49,6 +50,7 @@ export default function App() {
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
+      <FeedbackButton />
     </div>
   );
 }
