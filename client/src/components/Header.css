@@ -197,9 +197,11 @@
   width: 34px;
   height: 34px;
   padding: 0;
+  margin-left: auto;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   transition: all var(--transition);
+  flex-shrink: 0;
 }
 
 .nav-link--github:hover {
