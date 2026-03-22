@@ -294,7 +294,7 @@ function EpisodeRow({ episode }) {
             <PlatformIcon url={episode.episode_url} />
           </a>
         )}
-        {episode.audio_url && audioPlatform && (
+        {episode.audio_url && audioPlatform && (!episodePlatform || audioPlatform.name !== episodePlatform.name) && (
           <a
             href={episode.audio_url}
             target="_blank"

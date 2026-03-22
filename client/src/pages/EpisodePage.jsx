@@ -434,7 +434,7 @@ export default function EpisodePage() {
           )}
         </div>
         <div className="ep-actions">
-          {episode.audio_url && (
+          {episode.audio_url && episode.audio_url !== episode.episode_url && (
             <a href={episode.audio_url} target="_blank" rel="noopener noreferrer" className="btn-play">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="5 3 19 12 5 21 5 3" />
