@@ -48,9 +48,18 @@ function stripVTTTags(text) {
     .trim();
 }
 
+// Auto-detect actual format: if labeled vtt/srt but has no timing lines, treat as plain
+function detectFormat(content, declaredFormat) {
+  if (!content) return declaredFormat;
+  if (declaredFormat === 'vtt' && !content.includes('-->')) return 'plain';
+  if (declaredFormat === 'srt' && !content.includes('-->')) return 'plain';
+  return declaredFormat;
+}
+
 // Parse transcript content - support plain text, VTT, SRT
 function parseTranscript(content, format) {
   if (!content) return [];
+  format = detectFormat(content, format);
 
   if (format === 'vtt') {
     const rawCues = [];
@@ -156,7 +165,7 @@ function parseTranscript(content, format) {
   }).filter(b => b.text);
 }
 
-// Render transcript text: convert **[Speaker]** to styled tags, **inline** to bold, strip inline timestamps
+// Render transcript text: convert **[Speaker]** or [Speaker] to styled tags, **inline** to bold, strip inline timestamps
 function renderTranscriptText(text) {
   if (!text) return null;
   let n = text;
@@ -166,6 +175,10 @@ function renderTranscriptText(text) {
   n = n.replace(/\*\*\[([^\]]+)\]\s*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\*\*/g, '**[$1]**');
   // Normalize: **Name**: -> **[Name]** (at line/segment start)
   n = n.replace(/^(\s*)\*\*([^*\[\]]{1,30}?)\*\*[：:]\s*/gm, '$1**[$2]** ');
+  // Normalize: bare [Speaker] (non-timestamp, non-bold) at line start -> **[Speaker]**
+  n = n.replace(/^(\s*)\[([^\]\d][^\]]{0,29})\]\s*/gm, '$1**[$2]** ');
+  // Normalize: bare [Speaker] after newline within a block -> **[Speaker]**
+  n = n.replace(/\n(\s*)\[([^\]\d][^\]]{0,29})\]\s*/g, '\n$1**[$2]** ');
   // Strip inline [MM:SS] timestamps (after speaker tags or standalone)
   n = n.replace(/\s*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s*/g, ' ');
   // Split on **[...]** speaker tags and **inline** bold
