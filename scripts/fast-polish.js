@@ -15,7 +15,7 @@ const CONCURRENCY = 2;
 
 function makePrompt(podcastName, isZh) {
   if (isZh) return `你是播客文字稿编辑器。优化原始语音转录为可读文字稿。
-要求：1.添加标点 2.识别说话人，用**[真名]**标记（播客:${podcastName}，不要用"嘉宾"这种泛称，根据上下文推断真名） 3.换人说话另起一行 4.保留[MM:SS]时间戳 5.不改原意 6.修正语音识别错误
+要求：1.添加标点 2.识别说话人，用**[说话人真实姓名]**格式标记（播客:${podcastName}，根据上下文推断每位说话人的真实姓名，不要用"嘉宾""真名"等泛称） 3.换人说话另起一行 4.保留[MM:SS]时间戳 5.不改原意 6.修正语音识别错误
 只输出文稿。`;
   return `Podcast transcript editor. Polish raw STT into readable text.
 Rules: 1.Add punctuation 2.Label speakers as **[RealName]** (Podcast:${podcastName}, infer names from context, never use generic "Guest") 3.New line per speaker turn 4.Keep [MM:SS] timestamps 5.Don't change meaning 6.Fix STT errors
@@ -106,7 +106,7 @@ async function polishOne(db, ep) {
   // Replace generic labels with real names
   const tc = {}; const tre = /\*\*\[([^\]]+)\]\*\*/g; let tm;
   while ((tm = tre.exec(content)) !== null) tc[tm[1]] = (tc[tm[1]]||0)+1;
-  const generic = ['嘉宾','Guest','嘉宾A','嘉宾B','Guest A','Guest B','对话者','受访者','访谈者','Interviewer','Interviewee'];
+  const generic = ['嘉宾','Guest','嘉宾A','嘉宾B','Guest A','Guest B','对话者','受访者','访谈者','Interviewer','Interviewee','真名','RealName','说话人','Speaker'];
   const real = Object.entries(tc).filter(([n])=>!generic.includes(n)&&!['主持人','Host'].includes(n)).sort((a,b)=>b[1]-a[1]);
   if (real.length >= 1) {
     for (const g of generic) {
