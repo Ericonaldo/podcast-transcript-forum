@@ -8,7 +8,7 @@ const { getDb, closeDb } = require('../server/src/db');
 
 const API_KEY = 'sk-3ODOY96LmDCFgcBY1d1b586c01E448BcAbB5115bD8FbD2Fc';
 const API_URL = 'http://38.246.250.87:3000/v1/chat/completions';
-const MODEL = 'gpt-4o-mini';
+const MODEL = 'deepseek-chat';
 const CHUNK_SIZE = 3000;
 const MAX_LEN = 300000;
 const CONCURRENCY = 2;
