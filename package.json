@@ -12,7 +12,8 @@
     "seed": "node scripts/seed.js",
     "crawl": "node scripts/crawl.js",
     "update": "node scripts/update-podcasts.js",
-    "asr": "node scripts/asr-priority.js",
+    "asr": "node scripts/asr-diarize.js",
+    "asr:old": "node scripts/asr-priority.js",
     "polish": "node scripts/fast-polish.js"
   },
   "jest": {
