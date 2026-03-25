@@ -459,3 +459,13 @@ bilibili > youtube > 小宇宙 > 其他
 - 每个说话人的一轮发言 = 一个完整段落
 - 时间戳只在每个大段落开头保留一个
 - LLM模型使用fallback chain：deepseek-chat → gpt-4o-mini → deepseek-v3 → gpt-4o
+
+## 后处理规则 (postprocess-polish.js)
+
+每次polish完成后必须运行 `npm run postprocess`：
+
+1. 删除泄露的LLM prompt（"Part X/Y", "Use these exact names"等）
+2. 删除空行和只有speaker tag的行
+3. 合并连续相同说话人的段落（核心规则！）
+4. 删除speaker tag后的冒号
+5. 标准化tag格式 **[Name]**
