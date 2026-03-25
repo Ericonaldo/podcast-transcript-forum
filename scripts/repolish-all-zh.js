@@ -105,9 +105,10 @@ async function polishWithSpeakers(rawText, podcastName, episodeTitle, episodeDes
 1. 根据节目简介和内容，将SPEAKER_XX替换为真实姓名，用**[真名]**格式标记
 2. 姓名必须与节目简介中提到的嘉宾名字一致（注意同音字！）
 3. 添加标点
-4. 保留[MM:SS]时间戳
+4. 保留[MM:SS]时间戳（只在每个大段落开头保留一个即可）
 5. 不改原意
 6. 修正语音识别错误
+7. 合并同一说话人的连续短段落为大段落，使文稿更像长文章而非碎片对话。每个说话人的一轮发言合并为一个完整段落。
 
 只输出文稿。`;
 
@@ -120,19 +121,32 @@ async function polishWithSpeakers(rawText, podcastName, episodeTitle, episodeDes
   }
   if (cur) chunks.push(cur);
 
+  const MODELS = [LLM_MODEL, 'gpt-4o-mini', 'deepseek-v3', 'gpt-4o']; // fallback chain
+  async function callLLMWithRetry(messages) {
+    for (const model of MODELS) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const r = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, messages, max_tokens: 4096 })
+          });
+          if (!r.ok) { await new Promise(r => setTimeout(r, 3000)); continue; }
+          const d = await r.json();
+          return d?.choices?.[0]?.message?.content || null;
+        } catch (e) { await new Promise(r => setTimeout(r, 5000)); }
+      }
+    }
+    return null;
+  }
+
   const results = [];
   let speakerMap = '';
   for (let i = 0; i < chunks.length; i++) {
     process.stdout.write(`P${i + 1} `);
     const hint = i > 0 && speakerMap ? `\n\n(Part ${i + 1}/${chunks.length}. ${speakerMap})` : '';
-    const r = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: LLM_MODEL, messages: [{ role: 'system', content: sys }, { role: 'user', content: chunks[i] + hint }], max_tokens: 4096 })
-    });
-    if (!r.ok) throw new Error('LLM ' + r.status);
-    const d = await r.json();
-    const p = d?.choices?.[0]?.message?.content || chunks[i];
+    const p = await callLLMWithRetry([{ role: 'system', content: sys }, { role: 'user', content: chunks[i] + hint }]);
+    if (!p) throw new Error('All LLM models failed');
     results.push(p);
     const names = new Set();
     let m;

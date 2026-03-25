@@ -452,3 +452,10 @@ bilibili > youtube > 小宇宙 > 其他
 - YouTube被bot检测ban时，改用B站或小宇宙下载音频
 - 长播客(>5hr)的JSON输出需写文件而非stdout（避免buffer overflow）
 - speaker name必须参考episode description，避免同音字（如季逸超≠纪忆超）
+
+## 文稿排版规则
+
+- 同一说话人的连续短段落必须合并为大段落（像文章，非碎片对话）
+- 每个说话人的一轮发言 = 一个完整段落
+- 时间戳只在每个大段落开头保留一个
+- LLM模型使用fallback chain：deepseek-chat → gpt-4o-mini → deepseek-v3 → gpt-4o
