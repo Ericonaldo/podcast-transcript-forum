@@ -93,18 +93,21 @@ function mergeASRWithDiarize(asrContent, diarizeRows) {
   return result.join('\n');
 }
 
-async function polishWithSpeakers(rawText, podcastName, episodeTitle) {
+async function polishWithSpeakers(rawText, podcastName, episodeTitle, episodeDesc) {
+  // Extract guest names from description if available
+  const descHint = episodeDesc ? `\n\n节目简介（参考嘉宾姓名）：${episodeDesc.slice(0, 300)}` : '';
   const sys = `你是播客文字稿编辑器。文稿中已有说话人标签（如[SPEAKER_00]），请替换为真实姓名。
 
 播客：${podcastName}
-本期：${episodeTitle}
+本期：${episodeTitle}${descHint}
 
 要求：
-1. 根据内容推断SPEAKER_XX对应的真实姓名，用**[真名]**格式标记
-2. 添加标点
-3. 保留[MM:SS]时间戳
-4. 不改原意
-5. 修正语音识别错误
+1. 根据节目简介和内容，将SPEAKER_XX替换为真实姓名，用**[真名]**格式标记
+2. 姓名必须与节目简介中提到的嘉宾名字一致（注意同音字！）
+3. 添加标点
+4. 保留[MM:SS]时间戳
+5. 不改原意
+6. 修正语音识别错误
 
 只输出文稿。`;
 
@@ -151,7 +154,7 @@ async function main() {
 
   const where = podcastId ? `AND p.id=${parseInt(podcastId)}` : "AND p.language LIKE 'zh%'";
   const episodes = db.prepare(`
-    SELECT e.id, e.title, e.episode_url, e.audio_url, p.name as podcast_name,
+    SELECT e.id, e.title, e.description, e.episode_url, e.audio_url, p.name as podcast_name,
            (SELECT content FROM transcripts WHERE episode_id=e.id AND source='asr' LIMIT 1) as asr_content
     FROM episodes e JOIN podcasts p ON p.id=e.podcast_id
     WHERE 1=1 ${where}
@@ -194,7 +197,7 @@ async function main() {
 
       // Polish with LLM
       process.stdout.write('Polish... ');
-      const polished = await polishWithSpeakers(mergedText, ep.podcast_name, ep.title);
+      const polished = await polishWithSpeakers(mergedText, ep.podcast_name, ep.title, ep.description);
 
       // Save
       const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='llm_polish'").get(ep.id);

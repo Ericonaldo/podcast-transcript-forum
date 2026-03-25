@@ -110,18 +110,20 @@ function segsToText(segments) {
   return groups.join('\n');
 }
 
-async function polishTranscript(rawText, podcastName, episodeTitle) {
+async function polishTranscript(rawText, podcastName, episodeTitle, episodeDesc) {
+  const descHint = episodeDesc ? `\n\n节目简介（参考嘉宾姓名）：${episodeDesc.slice(0, 300)}` : '';
   const sys = `你是播客文字稿编辑器。文稿中已有说话人标签（如[SPEAKER_00]、[SPEAKER_01]），请将其替换为真实姓名。
 
 播客：${podcastName}
-本期：${episodeTitle}
+本期：${episodeTitle}${descHint}
 
 要求：
-1. 根据内容推断每个SPEAKER_XX对应的真实姓名，用**[真名]**格式标记
-2. 添加标点符号
-3. 保留[MM:SS]时间戳
-4. 不改变原意
-5. 修正语音识别错误
+1. 根据节目简介和内容，将SPEAKER_XX替换为真实姓名，用**[真名]**格式标记
+2. 姓名必须与节目简介中提到的嘉宾名字一致（注意同音字！）
+3. 添加标点符号
+4. 保留[MM:SS]时间戳
+5. 不改变原意
+6. 修正语音识别错误
 
 只输出文稿。`;
 
@@ -204,7 +206,7 @@ async function processEpisode(db, ep) {
     if (!noPolish) {
       // Polish: map SPEAKER_XX to real names
       process.stdout.write('Polish... ');
-      const polished = await polishTranscript(rawText, ep.podcast_name, ep.title);
+      const polished = await polishTranscript(rawText, ep.podcast_name, ep.title, ep.description);
       const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='llm_polish'").get(ep.id);
       if (existing) {
         db.prepare('UPDATE transcripts SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(polished, existing.id);
