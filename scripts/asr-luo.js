@@ -29,7 +29,7 @@ console.log(`\n🎤 罗永浩 ASR: ${eps.length} episodes (B站 + cookies)\n`);
   for (let i = 0; i < eps.length; i++) {
     const ep = eps[i];
     console.log(`[${i+1}/${eps.length}] ep${ep.id}: ${ep.title.slice(0, 45)}`);
-    const tmpFile = `/tmp/asr_luo_${ep.id}`;
+    const tmpFile = `/data/podcast-tmp/asr_luo_${ep.id}`;
     try {
       // Download from B站 with cookies
       console.log('  DL from B站...');
@@ -44,10 +44,10 @@ console.log(`\n🎤 罗永浩 ASR: ${eps.length} episodes (B站 + cookies)\n`);
       console.log(`  ${(fs.statSync(dlFile).size / 1024 / 1024).toFixed(0)}MB -> Whisper...`);
 
       // ASR
-      const script = `import sys,json\nfrom faster_whisper import WhisperModel\nmodel=WhisperModel("large-v3",device="cuda",compute_type="float16")\nsegments,info=model.transcribe("${dlFile}",language="zh",beam_size=5,vad_filter=True,vad_parameters=dict(min_silence_duration_ms=500))\nresult=[]\nfor seg in segments:\n    result.append({"start":seg.start,"end":seg.end,"text":seg.text.strip()})\n    if len(result)%200==0: sys.stderr.write(f"\\r  {len(result)} segs...")\nsys.stderr.write(f"\\r  {len(result)} segs done\\n")\njson.dump(result, open("/tmp/asr_segs_out.json","w"), ensure_ascii=False); print(str(len(result))+" segs")`;
+      const script = `import sys,json\nfrom faster_whisper import WhisperModel\nmodel=WhisperModel("large-v3",device="cuda",compute_type="float16")\nsegments,info=model.transcribe("${dlFile}",language="zh",beam_size=5,vad_filter=True,vad_parameters=dict(min_silence_duration_ms=500))\nresult=[]\nfor seg in segments:\n    result.append({"start":seg.start,"end":seg.end,"text":seg.text.strip()})\n    if len(result)%200==0: sys.stderr.write(f"\\r  {len(result)} segs...")\nsys.stderr.write(f"\\r  {len(result)} segs done\\n")\njson.dump(result, open("/data/podcast-tmp/asr_segs_out.json","w"), ensure_ascii=False); print(str(len(result))+" segs")`;
       const r = spawnSync('python3', ['-c', script], { timeout: 7200000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 50*1024*1024, env: { ...process.env, LD_LIBRARY_PATH: LD_PATH } });
       if (r.stderr) process.stderr.write(r.stderr);
-      const segments = JSON.parse(require("fs").readFileSync("/tmp/asr_segs_out.json","utf8"));
+      const segments = JSON.parse(require("fs").readFileSync("/data/podcast-tmp/asr_segs_out.json","utf8"));
       const rawText = segsToText(segments);
       db.prepare("INSERT OR REPLACE INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'asr')").run(ep.id, rawText);
       console.log(`  OK: ${segments.length} segs, ${rawText.length} chars`);

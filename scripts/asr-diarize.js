@@ -71,7 +71,7 @@ for seg in result["segments"]:
         "text": seg.get("text", "").strip(),
         "speaker": seg.get("speaker", "UNKNOWN")
     })
-json.dump(output, open("/tmp/asr_diarize_out.json", "w"), ensure_ascii=False)
+json.dump(output, open("/data/podcast-tmp/asr_diarize_out.json", "w"), ensure_ascii=False)
 sys.stderr.write(f"  Output: {len(output)} segments\\n")
 print(f"{len(output)} segments, {len(speakers)} speakers: {','.join(speakers)}")
 `;
@@ -83,7 +83,7 @@ print(f"{len(output)} segments, {len(speakers)} speakers: {','.join(speakers)}")
   });
   if (r.stderr) process.stderr.write(r.stderr);
   if (r.status !== 0) throw new Error('whisperx failed: ' + (r.stderr || '').slice(-200));
-  return JSON.parse(fs.readFileSync('/tmp/asr_diarize_out.json', 'utf8'));
+  return JSON.parse(fs.readFileSync('/data/podcast-tmp/asr_diarize_out.json', 'utf8'));
 }
 
 function segsToText(segments) {
@@ -186,7 +186,7 @@ async function processEpisode(db, ep) {
   const audioUrl = ep.audio_url || ep.episode_url;
   if (!audioUrl) return 'no audio source';
 
-  const tmpBase = `/tmp/asr_d_${ep.id}`;
+  const tmpBase = `/data/podcast-tmp/asr_d_${ep.id}`;
 
   try {
     // Download
@@ -219,10 +219,10 @@ async function processEpisode(db, ep) {
     return `OK (${segments.length} segs, ${rawText.length} chars)`;
   } finally {
     // Cleanup
-    fs.readdirSync('/tmp').filter(f => f.startsWith(`asr_d_${ep.id}`)).forEach(f => {
-      try { fs.unlinkSync('/tmp/' + f); } catch (e) {}
+    fs.readdirSync('/data/podcast-tmp').filter(f => f.startsWith(`asr_d_${ep.id}`)).forEach(f => {
+      try { fs.unlinkSync('/data/podcast-tmp/' + f); } catch (e) {}
     });
-    try { fs.unlinkSync('/tmp/asr_diarize_out.json'); } catch (e) {}
+    try { fs.unlinkSync('/data/podcast-tmp/asr_diarize_out.json'); } catch (e) {}
   }
 }
 

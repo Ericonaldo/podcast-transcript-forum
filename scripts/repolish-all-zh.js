@@ -50,7 +50,7 @@ sd = result.speaker_diarization
 rows = []
 for track, _, speaker in sd.itertracks(yield_label=True):
     rows.append({"start": track.start, "end": track.end, "speaker": speaker})
-json.dump(rows, open("/tmp/diarize_only_out.json", "w"))
+json.dump(rows, open("/data/podcast-tmp/diarize_only_out.json", "w"))
 import sys; sys.stderr.write(f"  Diarized: {len(rows)} turns\\n")
 print(f"{len(rows)} turns")
 `;
@@ -61,7 +61,7 @@ print(f"{len(rows)} turns")
   });
   if (r.stderr) process.stderr.write(r.stderr);
   if (r.status !== 0) throw new Error('Diarize failed');
-  return JSON.parse(fs.readFileSync('/tmp/diarize_only_out.json', 'utf8'));
+  return JSON.parse(fs.readFileSync('/data/podcast-tmp/diarize_only_out.json', 'utf8'));
 }
 
 function mergeASRWithDiarize(asrContent, diarizeRows) {
@@ -192,7 +192,7 @@ async function main() {
     }
 
     const audioUrl = ep.audio_url || ep.episode_url;
-    const tmpBase = `/tmp/rpol_${ep.id}`;
+    const tmpBase = `/data/podcast-tmp/rpol_${ep.id}`;
 
     try {
       // Download audio for diarization
@@ -226,10 +226,10 @@ async function main() {
       console.log(`\n  ERROR: ${e.message.slice(0, 80)}`);
       failed++;
     } finally {
-      fs.readdirSync('/tmp').filter(f => f.startsWith(`rpol_${ep.id}`)).forEach(f => {
-        try { fs.unlinkSync('/tmp/' + f); } catch (e) {}
+      fs.readdirSync('/data/podcast-tmp').filter(f => f.startsWith(`rpol_${ep.id}`)).forEach(f => {
+        try { fs.unlinkSync('/data/podcast-tmp/' + f); } catch (e) {}
       });
-      try { fs.unlinkSync('/tmp/diarize_only_out.json'); } catch (e) {}
+      try { fs.unlinkSync('/data/podcast-tmp/diarize_only_out.json'); } catch (e) {}
     }
   }
 
