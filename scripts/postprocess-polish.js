@@ -37,7 +37,12 @@ for (const tr of transcripts) {
   content = content.replace(/\(第\d+\/\d+段.*?\)/g, '');
   content = content.replace(/\(Speakers?:.*?\)/g, '');
 
-  // 2. Remove stray colons after speaker tags
+  // 2. Fix **[MM:SS] [Name]** → **[Name]** (timestamp inside tag)
+  content = content.replace(/\*\*\[\d{1,3}:\d{2}\]\s*\[([^\]]+)\]\*\*/g, '**[$1]**');
+  content = content.replace(/\[\d{1,3}:\d{2}\]\s*\*\*\[([^\]]+)\]\*\*/g, '**[$1]**');
+  content = content.replace(/\*\*\[\d{1,3}:\d{2}\]\*\*/g, '');
+
+  // 3. Remove stray colons after speaker tags
   content = content.replace(/\*\*\[([^\]]+)\]\*\*[：:]\s*/g, '**[$1]** ');
 
   // 3. Normalize tag format
