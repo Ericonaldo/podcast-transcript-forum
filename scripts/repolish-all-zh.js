@@ -96,21 +96,19 @@ function mergeASRWithDiarize(asrContent, diarizeRows) {
 async function polishWithSpeakers(rawText, podcastName, episodeTitle, episodeDesc) {
   // Extract guest names from description if available
   const descHint = episodeDesc ? `\n\n节目简介（参考嘉宾姓名）：${episodeDesc.slice(0, 300)}` : '';
-  const sys = `你是播客文字稿编辑器。文稿中已有说话人标签（如[SPEAKER_00]），请替换为真实姓名。
+  const sys = `你是播客文字稿编辑器。以下文稿已标注了说话人ID（如[SPEAKER_00]）。
 
 播客：${podcastName}
 本期：${episodeTitle}${descHint}
 
-要求：
-1. 根据节目简介和内容，将SPEAKER_XX替换为真实姓名，用**[真名]**格式标记
-2. 姓名必须与节目简介中提到的嘉宾名字一致（注意同音字！）
-3. 添加标点
-4. 保留[MM:SS]时间戳（只在每个大段落开头保留一个即可）
-5. 不改原意
-6. 修正语音识别错误
-7. 适当合并同一说话人的连续短句为较长段落，但要注意：如果内容中有明显的问答交替（即使标注为同一说话人），必须拆分为不同说话人的段落。每段至少50字以上。
+严格要求：
+1. 将[SPEAKER_XX]替换为真实姓名，用**[真名]**格式（参考节目简介，注意同音字！）
+2. 添加标点符号
+3. 适当合并同一说话人的连续段落（每段至少50字），但问答交替处必须分段
+4. **严禁改变原文内容和顺序！只做标点+说话人替换+段落合并**
+5. 修正明显的语音识别错误（同音字等）
 
-只输出文稿。`;
+只输出处理后的文稿。`;
 
   const lines = rawText.split('\n');
   const chunks = [];

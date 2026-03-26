@@ -426,12 +426,26 @@ npm run polish
 
 ## Pipeline流程
 
-1. **下载音频**: B站(cookies) > YouTube > 小宇宙 > RSS audio
-2. **whisperx transcribe**: GPU转录 (large-v3, Chinese)
-3. **whisperx align**: 精确时间对齐
-4. **pyannote diarize**: 音频级说话人分离 (SPEAKER_00/01/02)
-5. **LLM polish**: deepseek-chat, 将SPEAKER_XX映射为真名+加标点
-   - 参考episode description获取正确嘉宾姓名（避免同音字错误）
+### 新episode（无文稿）→ `npm run asr`
+1. 下载音频（B站cookies > YouTube > 小宇宙 > RSS）
+2. whisperx transcribe（GPU转录）
+3. whisperx align（时间对齐）
+4. pyannote diarize（音频级说话人分离 SPEAKER_00/01）
+5. 按说话人+60s分段生成带标签的文稿
+6. LLM polish：SPEAKER_XX→真名 + 标点 + 段落合并
+7. `npm run postprocess`
+
+### 已有文稿 re-polish → `node scripts/repolish-all-zh.js`
+1. **保留原始ASR/VTT文稿**（文字内容和顺序不变！）
+2. 下载音频 → pyannote diarize（只获取说话人时间戳）
+3. 按时间对齐，将SPEAKER_XX叠加到原始文稿每段
+4. LLM polish：**严禁改写原文！**只做 SPEAKER_XX→真名 + 标点 + 段落合并
+5. `npm run postprocess`
+
+### ⚠️ 关键原则
+- **re-polish绝不重新转录**，只在原始文稿上叠加说话人标签
+- LLM prompt必须强调"严禁改变原文内容和顺序"
+- 说话人姓名必须参考episode description（避免同音字）
 
 ## 环境变量 (.env)
 
