@@ -33,7 +33,7 @@ for (const tr of transcripts) {
 
   // 1. Remove leaked LLM prompt hints
   content = content.replace(/\(Part \d+\/\d+\..*?\)/g, '');
-  content = content.replace(/\(Use these exact names:.*?\)/g, '');
+  content = content.replace(/\(Use these exact (?:speaker )?names:.*?\)/g, '');
   content = content.replace(/\(第\d+\/\d+段.*?\)/g, '');
   content = content.replace(/\(Speakers?:.*?\)/g, '');
 
@@ -52,7 +52,8 @@ for (const tr of transcripts) {
   // 4. Remove empty/speaker-only lines
   content = content.replace(/^\*\*\[[^\]]+\]\*\*\s*$/gm, '');
 
-  // 5. Merge consecutive same-speaker paragraphs
+  // 5. Merge consecutive same-speaker paragraphs (with size cap to avoid mega-paragraphs)
+  const MAX_MERGE_SIZE = 3000;
   const lines = content.split('\n').filter(l => l.trim());
   const merged = [];
   let curSpeaker = null, curText = '';
@@ -66,7 +67,16 @@ for (const tr of transcripts) {
     if (!text) continue;
 
     if (speaker === curSpeaker || !speaker) {
-      curText += ' ' + text;
+      // Only merge if combined size won't exceed cap
+      if (curText.length + text.length + 1 <= MAX_MERGE_SIZE) {
+        curText += ' ' + text;
+      } else {
+        // Flush current paragraph, start new one with same speaker
+        if (curSpeaker && curText.trim()) {
+          merged.push('**[' + curSpeaker + ']** ' + curText.trim());
+        }
+        curText = text;
+      }
     } else {
       if (curSpeaker && curText.trim()) {
         merged.push('**[' + curSpeaker + ']** ' + curText.trim());

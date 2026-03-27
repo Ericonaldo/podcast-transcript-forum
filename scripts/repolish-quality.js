@@ -66,12 +66,18 @@ function formatTime(secs) {
   return Math.floor(secs/60)+':'+String(Math.floor(secs%60)).padStart(2,'0');
 }
 
-function makePrompt(podcastName, host, guests, episodeTitle, episodeDesc) {
+function makePrompt(podcastName, host, guests, episodeTitle, episodeDesc, hasASRLabels) {
   const speakerInfo = [];
   if (host) speakerInfo.push(`Host/主持人: ${host}`);
   if (guests) speakerInfo.push(`Guest(s)/嘉宾: ${guests}`);
   const speakerHint = speakerInfo.length > 0 ? `\n已知说话人：${speakerInfo.join('，')}` : '';
   const descHint = episodeDesc ? `\n节目简介（参考嘉宾姓名拼写）：${episodeDesc.slice(0, 500)}` : '';
+
+  const speakerLabelRule = hasASRLabels
+    ? `3. 原文中有[SPEAKER_00]、[SPEAKER_01]等说话人标签。将它们替换为真实姓名**[真名]**格式。**严格遵循原有的说话人标签分配**——如果原文标记为SPEAKER_00，就用对应的真名，不要自作主张更改说话人归属。
+4. 注意：ASR说话人标签可能在段落内交替——一个段落可能包含两个说话人的内容。当你发现段内有不同SPEAKER标签时，必须在该处分段。`
+    : `3. 用**[说话人真实姓名]**格式标记每位说话人（参考已知说话人信息，注意同音字！绝不使用"嘉宾""真名""说话人"等泛称）
+4. **关键：必须在每次说话人切换处分段**。一个人提问，另一个人回答，必须是两个独立段落。检测段内问答交替。`;
 
   return `你是专业播客文字稿编辑器。将语音转录优化为高质量可读文字稿。
 
@@ -81,12 +87,11 @@ function makePrompt(podcastName, host, guests, episodeTitle, episodeDesc) {
 严格要求：
 1. **保留原文所有内容**——不得删减、省略、总结任何文字。输出长度应与输入大致相同。
 2. 添加标点符号，修正明显语音识别错误（同音字等）
-3. 用**[说话人真实姓名]**格式标记每位说话人（参考已知说话人信息，注意同音字！绝不使用"嘉宾""真名""说话人"等泛称）
-4. **关键：必须在每次说话人切换处分段**。一个人提问，另一个人回答，必须是两个独立段落
-5. 检测段内问答交替：如果一段文字包含两个人的对话（比如"嗯""对""是的"等回应词后面跟着另一个话题），必须拆分为多个说话人段落
-6. 同一说话人的连续内容合并为一个大段落（每段至少50字）
-7. 每段开头保留一个时间戳[MM:SS]
-8. 不改变原意和语序
+${speakerLabelRule}
+5. 同一说话人的连续内容合并为一个大段落（每段至少50字）
+6. 每段开头保留一个时间戳[MM:SS]
+7. 不改变原意和语序
+8. 每个说话人每次发言都必须以**[说话人]**开头单独成段
 
 只输出处理后的完整文稿，不要任何解释或注释。`;
 }
@@ -180,7 +185,8 @@ async function polishEpisode(db, episodeId) {
     rawContent = rawContent.slice(0, 500000);
   }
 
-  const sys = makePrompt(ep.podcast_name, ep.host, ep.guests, ep.title, ep.description);
+  const hasASRLabels = /\[SPEAKER_\d+\]/.test(rawContent);
+  const sys = makePrompt(ep.podcast_name, ep.host, ep.guests, ep.title, ep.description, hasASRLabels);
 
   // Chunk the transcript
   const lines = rawContent.split('\n');
