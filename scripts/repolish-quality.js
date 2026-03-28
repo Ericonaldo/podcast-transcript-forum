@@ -97,18 +97,28 @@ ${speakerLabelRule}
 }
 
 async function callLLM(messages, model) {
-  const resp = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages, max_tokens: MAX_TOKENS, temperature: 0.3 })
-  });
-  if (resp.status === 429) {
-    await new Promise(r => setTimeout(r, 10000));
-    throw new Error('Rate limited');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+  try {
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, max_tokens: MAX_TOKENS, temperature: 0.3 }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (resp.status === 429) {
+      await new Promise(r => setTimeout(r, 10000));
+      throw new Error('Rate limited');
+    }
+    if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text().catch(() => '')}`);
+    const d = await resp.json();
+    return d?.choices?.[0]?.message?.content || null;
+  } catch(e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error('API timeout (120s)');
+    throw e;
   }
-  if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text().catch(() => '')}`);
-  const d = await resp.json();
-  return d?.choices?.[0]?.message?.content || null;
 }
 
 async function callLLMWithRetry(messages) {
