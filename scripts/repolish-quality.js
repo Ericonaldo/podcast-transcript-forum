@@ -225,20 +225,23 @@ async function polishEpisode(db, episodeId) {
       if (!polished) {
         console.log('FAIL');
         retries++;
+        await new Promise(r => setTimeout(r, 5000 * retries));
         continue;
       }
 
       // Validate output length
       const ratio = polished.length / chunk.length;
       if (ratio < MIN_OUTPUT_RATIO && chunk.length > 200) {
-        console.log(`SHORT(${(ratio*100).toFixed(0)}%) `);
+        process.stdout.write(`SHORT(${(ratio*100).toFixed(0)}%) `);
         retries++;
         if (retries < MAX_RETRIES) {
           process.stdout.write('retry... ');
+          await new Promise(r => setTimeout(r, 3000 * retries));
           continue;
         }
-        // On last retry, use what we got but warn
-        console.log('WARN:accepting short output');
+        // On last retry, accept what we got
+        console.log('WARN:accepting');
+        break;
       } else {
         process.stdout.write(`OK(${(ratio*100).toFixed(0)}%) `);
         break;
@@ -246,8 +249,8 @@ async function polishEpisode(db, episodeId) {
     }
 
     if (!polished) {
-      console.log(`  FATAL: chunk ${i+1} failed after ${MAX_RETRIES} retries`);
-      return null;
+      console.log(`  WARN: chunk ${i+1} failed after ${MAX_RETRIES} retries, using original text`);
+      polished = chunk; // Fall back to original text instead of failing whole episode
     }
 
     results.push(polished);

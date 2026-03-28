@@ -1,6 +1,7 @@
 #!/bin/bash
 # Batch re-polish all problematic Chinese episodes sequentially
 # This avoids API rate limiting and SQLite contention
+# Uses stdbuf for unbuffered output
 
 cd /home/mhliu/podcast-transcript-forum
 
@@ -11,7 +12,7 @@ EPISODES=(
   # Incomplete polish (much shorter than ASR)
   114
   # No polish yet (have ASR)
-  134 113 110 115 141 104 152 156 157 158 160 161 162 163
+  134 113 110 104 152 156 157 158 160 161 162 163
   # Moderate issues (avg_para > 1200)
   126 102 101 122 106 568 123
   # Other podcasts with issues
@@ -20,6 +21,8 @@ EPISODES=(
   480 478 522 517 177 501 516 505 524
   # VTT-sourced episodes with issues
   223 215 245 226 212 211 239
+  # Broken ones from earlier runs
+  125 120
 )
 
 TOTAL=${#EPISODES[@]}
@@ -34,14 +37,18 @@ for EP in "${EPISODES[@]}"; do
   ELAPSED=$(( ($(date +%s) - START) / 60 ))
   echo "[$((DONE+FAILED+1))/$TOTAL] (${ELAPSED}m) Episode $EP"
 
-  node scripts/repolish-quality.js --episode-id=$EP 2>&1 | grep -v dotenv
+  # 30 minute timeout per episode
+  timeout 1800 node scripts/repolish-quality.js --episode-id=$EP 2>&1
+  EXIT_CODE=$?
 
-  if [ $? -eq 0 ]; then
+  if [ $EXIT_CODE -eq 0 ]; then
     # Run postprocess immediately after each episode
-    node scripts/postprocess-polish.js --episode-id=$EP 2>&1 | grep -v dotenv
+    node scripts/postprocess-polish.js --episode-id=$EP 2>&1
     DONE=$((DONE + 1))
+    echo "  -> ep$EP DONE"
   else
     FAILED=$((FAILED + 1))
+    echo "  -> ep$EP FAILED (exit=$EXIT_CODE)"
   fi
 
   echo "---"

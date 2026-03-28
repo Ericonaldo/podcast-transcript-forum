@@ -52,6 +52,28 @@ for (const tr of transcripts) {
   // 4. Remove empty/speaker-only lines
   content = content.replace(/^\*\*\[[^\]]+\]\*\*\s*$/gm, '');
 
+  // 4.5 Fix inline non-bold speaker tags embedded in paragraphs
+  // Detect patterns like "text [张小珺] more text" and split into separate paragraphs
+  // First, collect known speaker names from bold tags in this transcript
+  const knownSpeakers = new Set();
+  const boldRe = /\*\*\[([^\]]+)\]\*\*/g;
+  let bm;
+  while ((bm = boldRe.exec(content)) !== null) knownSpeakers.add(bm[1]);
+
+  if (knownSpeakers.size > 0) {
+    // Build regex to match inline non-bold speaker tags for known speakers
+    const escapedNames = [...knownSpeakers].map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const inlineRe = new RegExp(`(?<![*\\[])\\[(${escapedNames.join('|')})\\](?![*\\]])`, 'g');
+    // Replace inline [Name] with newline + **[Name]**
+    content = content.replace(inlineRe, '\n\n**[$1]**');
+  }
+
+  // Also handle [嘉宾] or similar generic tags inline
+  content = content.replace(/(?<![*\[])\[(嘉宾|Guest|主持人|Host)\](?![*\]])/g, '\n\n**[$1]**');
+
+  // Clean up any resulting double newlines
+  content = content.replace(/\n{3,}/g, '\n\n');
+
   // 5. Merge consecutive same-speaker paragraphs (with size cap to avoid mega-paragraphs)
   const MAX_MERGE_SIZE = 3000;
   const lines = content.split('\n').filter(l => l.trim());
