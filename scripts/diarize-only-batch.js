@@ -36,20 +36,44 @@ function downloadAudio(url, outFile) {
 }
 
 function runDiarize(audioFile) {
+  // First convert to 16kHz mono WAV using ffmpeg (memory-efficient, streaming)
+  // This avoids loading entire audio into RAM for resampling
+  const wavFile = audioFile.replace(/\.[^.]+$/, '_16k.wav');
+  const ffResult = spawnSync('ffmpeg', ['-i', audioFile, '-ar', '16000', '-ac', '1', '-y', wavFile], {
+    timeout: 600000, stdio: ['ignore', 'pipe', 'pipe']
+  });
+  if (ffResult.status !== 0) throw new Error('ffmpeg resample failed');
+
   const script = `
 import os, json, torch, torchaudio, warnings
 warnings.filterwarnings('ignore')
 os.environ['HF_TOKEN'] = '${HF_TOKEN}'
-device = "cuda"
-waveform, sr = torchaudio.load("${audioFile}")
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
+# Load pre-resampled 16kHz mono WAV (much smaller in memory)
+waveform, sr = torchaudio.load("${wavFile}")
+
 from pyannote.audio import Pipeline
 pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=os.environ['HF_TOKEN'])
-pipeline.to(torch.device(device))
-result = pipeline({"waveform": waveform.to(device), "sample_rate": sr})
-sd = result.speaker_diarization
+pipeline.to(torch.device("cuda"))
+
+# waveform stays on CPU, pipeline handles GPU transfer in chunks
+result = pipeline({"waveform": waveform, "sample_rate": sr})
+
+# pyannote 4.x: result may be DiarizeOutput or Annotation
+# Try .speaker_diarization first, then direct itertracks
+diarization = getattr(result, 'speaker_diarization', None) or result
 rows = []
-for track, _, speaker in sd.itertracks(yield_label=True):
-    rows.append({"start": track.start, "end": track.end, "speaker": speaker})
+try:
+    for track, _, speaker in diarization.itertracks(yield_label=True):
+        rows.append({"start": track.start, "end": track.end, "speaker": speaker})
+except AttributeError:
+    # Fallback: serialize and parse
+    data = result.serialize() if hasattr(result, 'serialize') else {}
+    if 'speaker_diarization' in data:
+        ann = data['speaker_diarization']
+        for track, _, speaker in ann.itertracks(yield_label=True):
+            rows.append({"start": track.start, "end": track.end, "speaker": speaker})
 json.dump(rows, open("/data/podcast-tmp/diarize_only_out.json", "w"))
 import sys; sys.stderr.write(f"  Diarized: {len(rows)} turns\\n")
 print(f"{len(rows)} turns")
@@ -65,47 +89,72 @@ print(f"{len(rows)} turns")
 }
 
 function vttToTimedPlain(vttContent) {
+  // Parse VTT into individual cues with precise start/end times
   const cues = [];
   for (const block of vttContent.split(/\n\s*\n/)) {
     const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
     if (!lines.length || /^(WEBVTT|NOTE|STYLE|Kind:|Language:)/.test(lines[0])) continue;
     const ti = lines.findIndex(l => l.includes('-->'));
     if (ti === -1) continue;
-    const m = lines[ti].match(/([\d:.]+)/);
-    const secs = m ? m[1].split(':').reduce((a,v,i,arr) => a+parseFloat(v)*Math.pow(60,arr.length-1-i),0) : 0;
-    const text = lines.slice(ti+1).map(l => l.replace(/<.*?>/g,'').trim()).filter(Boolean).join(' ');
-    if (text) cues.push({secs, text});
+    const tm = lines[ti].match(/([\d:.]+)\s*-->\s*([\d:.]+)/);
+    if (!tm) continue;
+    const parse = s => s.split(':').reduce((a,v,i,arr) => a+parseFloat(v)*Math.pow(60,arr.length-1-i),0);
+    const start = parse(tm[1]), end = parse(tm[2]);
+    const text = lines.slice(ti+1).map(l => l.replace(/<\d{1,2}:\d{2}:\d{2}[.,]\d{3}>/g,'').replace(/<\/?[a-z][^>]*>/gi,'').trim()).filter(Boolean).join(' ');
+    if (text) cues.push({start, end, text});
   }
   if (!cues.length) return null;
-  const groups = []; let ws = cues[0].secs, wt = [];
+
+  // Group into ~5-second windows (much finer than 30s) to preserve speaker turn precision
+  const groups = [];
   const fmt = s => Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+  let ws = cues[0].start, we = cues[0].end, wt = [];
   for (const c of cues) {
-    if (c.secs - ws >= 30 && wt.length) { groups.push('['+fmt(ws)+'] '+wt.join(' ')); ws = c.secs; wt = []; }
+    if (c.start - ws >= 5 && wt.length) {
+      groups.push({start: ws, end: we, text: '['+fmt(ws)+'] '+wt.join(' ')});
+      ws = c.start; we = c.end; wt = [];
+    }
     wt.push(c.text);
+    we = c.end;
   }
-  if (wt.length) groups.push('['+fmt(ws)+'] '+wt.join(' '));
-  return groups.join('\n');
+  if (wt.length) groups.push({start: ws, end: we, text: '['+fmt(ws)+'] '+wt.join(' ')});
+  return groups;
 }
 
-function mergeWithDiarize(textContent, diarizeRows) {
-  const lines = textContent.split('\n').filter(l => l.trim());
-  const segs = lines.map(l => {
-    const m = l.match(/^\[(\d+):(\d+)\]\s*(.*)/);
-    if (m) return { start: parseInt(m[1]) * 60 + parseInt(m[2]), text: m[3] };
-    return { start: 0, text: l };
-  });
+function mergeWithDiarize(segments, diarizeRows) {
+  // segments: array of {start, end, text} (from VTT cues or ASR)
+  // diarizeRows: array of {start, end, speaker} from pyannote
+  //
+  // For each text segment, find the speaker with the most overlap using
+  // the segment's actual start/end times (not a fixed window)
   const result = [];
-  for (const seg of segs) {
-    let bestSpeaker = 'UNKNOWN'; let bestOverlap = 0;
-    const segEnd = seg.start + 30;
+  for (const seg of segments) {
+    let bestSpeaker = 'UNKNOWN';
+    let bestOverlap = 0;
+    const segStart = seg.start;
+    const segEnd = seg.end || seg.start + 5; // fallback if no end time
+
     for (const dr of diarizeRows) {
-      const overlap = Math.min(segEnd, dr.end) - Math.max(seg.start, dr.start);
-      if (overlap > bestOverlap) { bestOverlap = overlap; bestSpeaker = dr.speaker; }
+      const overlap = Math.min(segEnd, dr.end) - Math.max(segStart, dr.start);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestSpeaker = dr.speaker;
+      }
     }
-    const ts = `[${Math.floor(seg.start/60)}:${String(Math.floor(seg.start%60)).padStart(2,'0')}]`;
-    result.push(`${ts} [${bestSpeaker}] ${seg.text}`);
+    const ts = `[${Math.floor(segStart/60)}:${String(Math.floor(segStart%60)).padStart(2,'0')}]`;
+    const textPart = typeof seg.text === 'string' && seg.text.startsWith('[') ? seg.text.replace(/^\[\d+:\d+\]\s*/, '') : seg.text;
+    result.push(`${ts} [${bestSpeaker}] ${textPart}`);
   }
   return result.join('\n');
+}
+
+function asrToSegments(asrContent) {
+  // Convert ASR [MM:SS] text format to segments with start times
+  return asrContent.split('\n').filter(l => l.trim()).map(l => {
+    const m = l.match(/^\[(\d+):(\d+)\]\s*(.*)/);
+    if (m) return { start: parseInt(m[1]) * 60 + parseInt(m[2]), end: parseInt(m[1]) * 60 + parseInt(m[2]) + 30, text: m[3] };
+    return { start: 0, end: 30, text: l };
+  });
 }
 
 async function main() {
@@ -131,10 +180,15 @@ async function main() {
     const elapsed = ((Date.now() - start) / 60000).toFixed(1);
     process.stdout.write(`[${i+1}/${episodes.length}] (${elapsed}m) ${ep.podcast_name?.slice(0,12)} | ${ep.title.slice(0,40)}... `);
 
-    // Get source text
-    let sourceText = ep.asr_content;
-    if (!sourceText && ep.vtt_content) sourceText = vttToTimedPlain(ep.vtt_content);
-    if (!sourceText) { console.log('SKIP(no source)'); skipped++; continue; }
+    // Get source segments (array of {start, end, text})
+    let sourceSegments = null;
+    if (ep.vtt_content) {
+      sourceSegments = vttToTimedPlain(ep.vtt_content); // returns array of segments with precise times
+    }
+    if (!sourceSegments && ep.asr_content) {
+      sourceSegments = asrToSegments(ep.asr_content); // convert ASR to segments
+    }
+    if (!sourceSegments || sourceSegments.length === 0) { console.log('SKIP(no source)'); skipped++; continue; }
 
     // Check if already has diarized version
     const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='asr_diarized'").get(ep.id);
@@ -155,8 +209,8 @@ async function main() {
       process.stdout.write('Diarize... ');
       const rows = runDiarize(dlFile);
 
-      // Merge
-      const merged = mergeWithDiarize(sourceText, rows);
+      // Merge (precise time matching)
+      const merged = mergeWithDiarize(sourceSegments, rows);
 
       // Save as asr_diarized source
       if (existing) {
