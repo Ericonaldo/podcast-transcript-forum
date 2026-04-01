@@ -42,12 +42,35 @@ for (const tr of transcripts) {
   content = content.replace(/\[\d{1,3}:\d{2}\]\s*\*\*\[([^\]]+)\]\*\*/g, '**[$1]**');
   content = content.replace(/\*\*\[\d{1,3}:\d{2}\]\*\*/g, '');
 
-  // 3. Remove stray colons after speaker tags
-  content = content.replace(/\*\*\[([^\]]+)\]\*\*[：:]\s*/g, '**[$1]** ');
+  // 3. Extract known speakers first
+  const speakers = new Set();
+  const tagRe = /\*\*\[([^\]]+)\]\*\*/g;
+  let tm;
+  while ((tm = tagRe.exec(content)) !== null) speakers.add(tm[1]);
 
-  // 3. Normalize tag format
-  content = content.replace(/(^|\n)\*\*([^*\[\]\n]{1,30}?)\*\*[：:]\s*/g, '$1**[$2]** ');
-  content = content.replace(/(^|\n)\*\*([^*\[\]\n]{1,30}?)\*\*(\s)/g, (m, pre, name, sp) => pre + '**[' + name.trim() + ']**' + sp);
+  // 4. Fix **Name:** or **Name：** -> **[Name]**
+  content = content.replace(/\*\*([^*\n]{1,50}?)[：:]\*\*/g, (m, name) => {
+    speakers.add(name.trim());
+    return `**[${name.trim()}]**`;
+  });
+  content = content.replace(/\*\*([^*\n]{1,50}?)\*\*[：:]\s*/g, (m, name) => {
+    speakers.add(name.trim());
+    return `**[${name.trim()}]** `;
+  });
+
+  // 5. Fix inline "Name:" for known speakers
+  for (const speaker of speakers) {
+    const escaped = speaker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const inlineRe = new RegExp(`(^|\\n|\\. |, )${escaped}:\\s+`, 'gm');
+    content = content.replace(inlineRe, (m, prefix) => {
+      if (prefix === '\n' || prefix === '') return `**[${speaker}]** `;
+      if (prefix === '. ' || prefix === ', ') return prefix + `\n\n**[${speaker}]** `;
+      return prefix + `**[${speaker}]** `;
+    });
+  }
+
+  // 6. Remove stray colons after speaker tags
+  content = content.replace(/\*\*\[([^\]]+)\]\*\*[：:]\s*/g, '**[$1]** ');
 
   // 4. Remove empty/speaker-only lines
   content = content.replace(/^\*\*\[[^\]]+\]\*\*\s*$/gm, '');

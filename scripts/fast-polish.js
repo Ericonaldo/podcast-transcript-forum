@@ -15,10 +15,12 @@ const CONCURRENCY = 2;
 
 function makePrompt(podcastName, isZh) {
   if (isZh) return `你是播客文字稿编辑器。优化原始语音转录为可读文字稿。
-要求：1.添加标点 2.识别说话人，用**[说话人真实姓名]**格式标记（播客:${podcastName}，根据上下文推断每位说话人的真实姓名，不要用"嘉宾""真名"等泛称） 3.换人说话另起一行 4.保留[MM:SS]时间戳 5.不改原意 6.修正语音识别错误
+要求：1.添加标点 2.识别说话人，用**[说话人真实姓名]**格式标记（播客:${podcastName}，根据上下文推断每位说话人的真实姓名，不要用"嘉宾""真名"等泛称）3.换人说话另起一行 4.保留[MM:SS]时间戳 5.不改原意 6.修正语音识别错误
+重要：说话人标签必须严格使用**[姓名]**格式，绝不使用**姓名:**或**姓名：**格式。
 只输出文稿。`;
   return `Podcast transcript editor. Polish raw STT into readable text.
 Rules: 1.Add punctuation 2.Label speakers as **[RealName]** (Podcast:${podcastName}, infer names from context, never use generic "Guest") 3.New line per speaker turn 4.Keep [MM:SS] timestamps 5.Don't change meaning 6.Fix STT errors
+CRITICAL: Speaker tags MUST use **[Name]** format. NEVER use **Name:** or **Name** format.
 Output only transcript.`;
 }
 

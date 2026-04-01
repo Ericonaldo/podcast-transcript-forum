@@ -110,6 +110,7 @@ async function polishWithSpeakers(rawText, podcastName, episodeTitle, episodeDes
 6. 同一说话人的连续内容可以合并，每段至少50字
 7. 修正明显的语音识别错误（同音字等）
 8. 段落内不要出现"XXX："这样的说话人标记，必须拆为独立的**[XXX]**段落
+9. **关键：说话人标签必须严格使用**[姓名]**格式，绝不使用**姓名:**或**姓名：**或**姓名**格式**
 
 只输出处理后的文稿。`;
 
