@@ -55,6 +55,10 @@ for (const tr of transcripts) {
         if (prefix === '. ' || prefix === ', ') return prefix + `\n\n**[${speaker}]** `;
         return prefix + `**[${speaker}]** `;
       });
+
+      // Also match mid-paragraph **Name:** patterns
+      const midRe = new RegExp(`([.!?]\\s+)\\*\\*${escaped}[：:]\\*\\*`, 'g');
+      content = content.replace(midRe, `$1\n\n**[${speaker}]**`);
     }
   }
 
