@@ -11,3 +11,4 @@ data/podcast.db.backup
 data/*.db-shm
 data/*.db-wal
 data/podcast_corrupt*
+cookies.txt
