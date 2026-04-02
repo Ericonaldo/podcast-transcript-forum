@@ -8,6 +8,7 @@
 require('dotenv').config();
 const { spawnSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 const { getDb, closeDb } = require('../server/src/db');
 
 const API_KEY = process.env.LLM_API_KEY;
@@ -50,7 +51,13 @@ result = whisperx.align(result["segments"], model_a, metadata, audio_np, device)
 from pyannote.audio import Pipeline
 diarize_pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=os.environ['HF_TOKEN'])
 diarize_pipeline.to(torch.device(device))
-diarize_output = diarize_pipeline({"waveform": waveform.to(device), "sample_rate": sr})
+# Tune for better short-turn detection
+try:
+    params = {"segmentation": {"min_duration_off": 0.0}, "clustering": {"method": "centroid", "min_cluster_size": 12, "threshold": 0.55}}
+    diarize_pipeline.instantiate(params)
+except: pass
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+diarize_output = diarize_pipeline({"waveform": waveform, "sample_rate": sr}, num_speakers=2)
 sd = diarize_output.speaker_diarization
 rows = []
 for track, _, speaker in sd.itertracks(yield_label=True):
@@ -173,7 +180,11 @@ function downloadAudio(url, outFile) {
   if (url.includes('bilibili')) {
     spawnSync('yt-dlp', ['--cookies-from-browser', 'chrome', '-x', '--audio-format', 'mp3', '-o', outFile + '.%(ext)s', '--no-playlist', '--quiet', url], { timeout: 600000 });
   } else if (url.includes('youtube')) {
-    spawnSync('yt-dlp', ['-x', '--audio-format', 'mp3', '-o', outFile + '.%(ext)s', '--no-playlist', '--quiet', url], { timeout: 600000 });
+    const cookiesFile = path.join(__dirname, '..', 'cookies.txt');
+    const args = ['-x', '--audio-format', 'mp3', '-o', outFile + '.%(ext)s', '--no-playlist', '--quiet', '--remote-components', 'ejs:github'];
+    if (fs.existsSync(cookiesFile)) args.push('--cookies', cookiesFile);
+    args.push(url);
+    spawnSync('yt-dlp', args, { timeout: 600000, env: { ...process.env, PATH: `${process.env.HOME}/.deno/bin:${process.env.PATH}` } });
   } else {
     const { execSync } = require('child_process');
     execSync(`curl -L -s -o "${outFile}.m4a" --max-time 600 "${url}"`, { timeout: 610000 });
