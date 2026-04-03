@@ -117,9 +117,29 @@ function segsToText(segments) {
   return groups.join('\n');
 }
 
-async function polishTranscript(rawText, podcastName, episodeTitle, episodeDesc) {
-  const descHint = episodeDesc ? `\n\n节目简介（参考嘉宾姓名）：${episodeDesc.slice(0, 300)}` : '';
-  const sys = `你是播客文字稿编辑器。文稿中已有说话人标签（如[SPEAKER_00]、[SPEAKER_01]），请将其替换为真实姓名。
+async function polishTranscript(rawText, podcastName, episodeTitle, episodeDesc, lang) {
+  let sys;
+  if (lang && lang.startsWith('en')) {
+    const descHint = episodeDesc ? `\n\nEpisode description (use for guest names): ${episodeDesc.slice(0, 300)}` : '';
+    sys = `You are a podcast transcript editor. The transcript has speaker labels (e.g. [SPEAKER_00], [SPEAKER_01]). Replace them with real names.
+
+Podcast: ${podcastName}
+Episode: ${episodeTitle}${descHint}
+
+Strict requirements:
+1. Replace SPEAKER_XX with real names using **[Name]** format (refer to episode description)
+2. Add proper punctuation
+3. **Keep all original text and order unchanged** — do not delete, rewrite, or reorganize content
+4. Start a new paragraph with speaker tag at every speaker change
+5. Detect Q&A alternation within paragraphs: if a paragraph contains both question and answer, split into separate speaker paragraphs
+6. Consecutive content from the same speaker can be merged, each paragraph at least 50 words
+7. Fix obvious speech recognition errors
+8. Do not use "Name:" format inside paragraphs — must split into separate **[Name]** paragraphs
+
+Output only the processed transcript.`;
+  } else {
+    const descHint = episodeDesc ? `\n\n节目简介（参考嘉宾姓名）：${episodeDesc.slice(0, 300)}` : '';
+    sys = `你是播客文字稿编辑器。文稿中已有说话人标签（如[SPEAKER_00]、[SPEAKER_01]），请将其替换为真实姓名。
 
 播客：${podcastName}
 本期：${episodeTitle}${descHint}
@@ -135,6 +155,7 @@ async function polishTranscript(rawText, podcastName, episodeTitle, episodeDesc)
 8. 段落内不要出现"XXX："这样的说话人标记，必须拆为独立的**[XXX]**段落
 
 只输出处理后的文稿。`;
+  }
 
   const lines = rawText.split('\n');
   const chunks = [];
@@ -214,17 +235,18 @@ async function processEpisode(db, ep) {
     const rawText = segsToText(segments);
 
     // Save raw ASR with speaker labels
-    db.prepare("INSERT OR REPLACE INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'asr')").run(ep.id, rawText);
+    const lang = ep.language || 'zh';
+    db.prepare("INSERT OR REPLACE INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', ?, 'asr')").run(ep.id, rawText, lang);
 
     if (!noPolish) {
       // Polish: map SPEAKER_XX to real names
       process.stdout.write('Polish... ');
-      const polished = await polishTranscript(rawText, ep.podcast_name, ep.title, ep.description);
+      const polished = await polishTranscript(rawText, ep.podcast_name, ep.title, ep.description, lang);
       const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='llm_polish'").get(ep.id);
       if (existing) {
         db.prepare('UPDATE transcripts SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(polished, existing.id);
       } else {
-        db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'llm_polish')").run(ep.id, polished);
+        db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', ?, 'llm_polish')").run(ep.id, polished, lang);
       }
     }
 
@@ -244,14 +266,14 @@ async function main() {
   let episodes;
   if (episodeId) {
     episodes = db.prepare(`
-      SELECT e.id, e.title, e.episode_url, e.audio_url, p.name as podcast_name
+      SELECT e.id, e.title, e.episode_url, e.audio_url, e.description, p.name as podcast_name, p.language
       FROM episodes e JOIN podcasts p ON p.id=e.podcast_id WHERE e.id=?
     `).all(parseInt(episodeId));
   } else {
     const where = podcastId ? `AND p.id=${parseInt(podcastId)}` : "AND p.language LIKE 'zh%'";
     const havingClause = reprocess ? '' : 'AND e.id NOT IN (SELECT episode_id FROM transcripts)';
     episodes = db.prepare(`
-      SELECT e.id, e.title, e.episode_url, e.audio_url, p.name as podcast_name
+      SELECT e.id, e.title, e.episode_url, e.audio_url, e.description, p.name as podcast_name, p.language
       FROM episodes e JOIN podcasts p ON p.id=e.podcast_id
       WHERE 1=1 ${where} ${havingClause}
       AND (e.episode_url IS NOT NULL OR e.audio_url IS NOT NULL)
