@@ -22,6 +22,7 @@ const args = process.argv.slice(2);
 const podcastId = args.find(a => a.startsWith('--podcast-id='))?.split('=')[1];
 const episodeId = args.find(a => a.startsWith('--episode-id='))?.split('=')[1];
 const noPolish = args.includes('--no-polish');
+const polishOnly = args.includes('--polish-only'); // skip download+ASR, re-polish from existing asr transcript
 const reprocess = args.includes('--reprocess'); // re-do even if transcript exists
 
 function runWhisperxDiarize(audioFile) {
@@ -216,6 +217,22 @@ function downloadAudio(url, outFile) {
 }
 
 async function processEpisode(db, ep) {
+  const lang = ep.language || 'zh';
+
+  if (polishOnly) {
+    const raw = db.prepare("SELECT content FROM transcripts WHERE episode_id=? AND source='asr'").get(ep.id);
+    if (!raw || !raw.content) return 'SKIP(no asr)';
+    process.stdout.write('  Polish... ');
+    const polished = await polishTranscript(raw.content, ep.podcast_name, ep.title, ep.description, lang);
+    const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='llm_polish'").get(ep.id);
+    if (existing) {
+      db.prepare('UPDATE transcripts SET content=?, language=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(polished, lang, existing.id);
+    } else {
+      db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', ?, 'llm_polish')").run(ep.id, polished, lang);
+    }
+    return `OK (${raw.content.length} chars)`;
+  }
+
   const audioUrl = ep.audio_url || ep.episode_url;
   if (!audioUrl) return 'no audio source';
 
@@ -271,7 +288,12 @@ async function main() {
     `).all(parseInt(episodeId));
   } else {
     const where = podcastId ? `AND p.id=${parseInt(podcastId)}` : "AND p.language LIKE 'zh%'";
-    const havingClause = reprocess ? '' : 'AND e.id NOT IN (SELECT episode_id FROM transcripts)';
+    let havingClause;
+    if (polishOnly) {
+      havingClause = "AND e.id IN (SELECT episode_id FROM transcripts WHERE source='asr') AND e.id NOT IN (SELECT episode_id FROM transcripts WHERE source='llm_polish')";
+    } else {
+      havingClause = reprocess ? '' : 'AND e.id NOT IN (SELECT episode_id FROM transcripts)';
+    }
     episodes = db.prepare(`
       SELECT e.id, e.title, e.episode_url, e.audio_url, e.description, p.name as podcast_name, p.language
       FROM episodes e JOIN podcasts p ON p.id=e.podcast_id
