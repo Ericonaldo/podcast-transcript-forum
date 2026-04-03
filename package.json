@@ -15,7 +15,8 @@
     "asr": "node scripts/asr-diarize.js",
     "asr:old": "node scripts/asr-priority.js",
     "polish": "node scripts/fast-polish.js",
-    "postprocess": "node scripts/postprocess-polish.js"
+    "postprocess": "node scripts/postprocess-polish.js",
+    "audit:podcast": "node scripts/audit-podcast-transcripts.js"
   },
   "jest": {
     "testEnvironment": "node",

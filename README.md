@@ -126,6 +126,7 @@ Runs the full API test suite (~50 test cases) covering CRUD operations, search, 
 | `node scripts/asr-zh.js` | Local ASR pipeline for Chinese podcasts |
 | `node scripts/translate-to-zh.js` | Translate English transcripts to Chinese |
 | `node scripts/batch-polish.js` | LLM-powered transcript polishing |
+| `npm run audit:podcast -- --podcast-id=23` | Audit one podcast for duplicate translations, speaker-label drift, and source-language mismatches |
 
 ## Codex Skills
 
@@ -133,6 +134,7 @@ This repo now includes repo-local Codex skills under [`.codex/skills`](/home/mhl
 
 - [`podcast-transcript-pipeline`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-transcript-pipeline/SKILL.md) for episode updates, ASR, repolish, postprocess, and transcript QA.
 - [`podcast-forum-deploy`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-forum-deploy/SKILL.md) for main-repo builds, `newserver` deployment, restart, and verification.
+- [`podcast-quality-repair`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-quality-repair/SKILL.md) for podcast-level audit and fast repair planning when speaker labels, transcript language, or translation rows drift over time.
 
 ## License
 

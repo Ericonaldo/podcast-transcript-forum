@@ -1,0 +1,4 @@
+interface:
+  display_name: "Podcast Repair"
+  short_description: "Audit one podcast's transcript quality problems and choose the right repair batch"
+  default_prompt: "Use the podcast quality repair skill to audit the target podcast, classify episodes by repair mode, and apply only the smallest safe transcript fixes."
