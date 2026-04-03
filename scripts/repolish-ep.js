@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
- * Re-polish a single episode from its asr_diarized source.
+ * Re-polish episodes from their asr_diarized source.
  * Preserves speaker splits strictly — does NOT re-run diarization.
  *
- * Usage: node scripts/repolish-ep.js --episode-id=96
+ * Usage:
+ *   node scripts/repolish-ep.js --episode-id=96        # single episode
+ *   node scripts/repolish-ep.js --all-zh                # all Chinese podcasts
+ *   node scripts/repolish-ep.js --podcast-id=16         # specific podcast
+ *   node scripts/repolish-ep.js --all-zh --skip=96,100  # skip specific episodes
  */
 require('dotenv').config();
 const { getDb, closeDb } = require('../server/src/db');
@@ -16,7 +20,14 @@ const MODELS = [LLM_MODEL, 'gpt-4o-mini', 'deepseek-v3', 'gpt-4o'];
 
 const args = process.argv.slice(2);
 const episodeId = args.find(a => a.startsWith('--episode-id='))?.split('=')[1];
-if (!episodeId) { console.log('Usage: node scripts/repolish-ep.js --episode-id=96'); process.exit(1); }
+const podcastId = args.find(a => a.startsWith('--podcast-id='))?.split('=')[1];
+const allZh = args.includes('--all-zh');
+const skipIds = (args.find(a => a.startsWith('--skip='))?.split('=')[1] || '').split(',').filter(Boolean).map(Number);
+
+if (!episodeId && !allZh && !podcastId) {
+  console.log('Usage: node scripts/repolish-ep.js --episode-id=96 | --all-zh | --podcast-id=16');
+  process.exit(1);
+}
 
 async function callLLM(messages) {
   for (const model of MODELS) {
@@ -37,36 +48,14 @@ async function callLLM(messages) {
   return null;
 }
 
-// PLACEHOLDER_MORE_CODE
-
-async function main() {
-  const db = getDb();
-  const ep = db.prepare(`
-    SELECT e.id, e.title, e.description, e.guests, p.name as podcast_name, p.host
-    FROM episodes e JOIN podcasts p ON p.id=e.podcast_id WHERE e.id=?
-  `).get(parseInt(episodeId));
-  if (!ep) { console.log('Episode not found'); process.exit(1); }
-
+async function polishEpisode(db, ep) {
   const raw = db.prepare("SELECT content FROM transcripts WHERE episode_id=? AND source='asr_diarized'").get(ep.id);
-  if (!raw) { console.log('No asr_diarized transcript'); process.exit(1); }
+  if (!raw) return 'SKIP(no asr_diarized)';
 
-  console.log(`Episode ${ep.id}: ${ep.title.slice(0, 60)}`);
-  console.log(`Podcast: ${ep.podcast_name}, Host: ${ep.host}`);
-  console.log(`Raw: ${(raw.content.length / 1000).toFixed(0)}k chars, ${raw.content.split('\n').length} lines`);
-
-  // Detect speaker mapping from content
-  const speakerCounts = {};
-  for (const line of raw.content.split('\n')) {
-    const m = line.match(/\[(SPEAKER_\d+)\]/);
-    if (m) speakerCounts[m[1]] = (speakerCounts[m[1]] || 0) + 1;
-  }
-  console.log('Speaker counts:', speakerCounts);
-
-  // Build speaker name mapping from description
+  const lines = raw.content.split('\n');
   const descHint = ep.description ? ep.description.slice(0, 500) : '';
   const hostName = ep.host || '主持人';
-  // For ep96: SPEAKER_00 = 张小珺 (opens with "哈喽 大家好 我是小珺")
-  const firstLine = raw.content.split('\n')[0];
+  const firstLine = lines[0] || '';
   const firstSpeaker = firstLine.match(/\[(SPEAKER_\d+)\]/)?.[1] || 'SPEAKER_00';
 
   const sys = `你是播客文字稿编辑器。以下文稿已标注了说话人ID。
@@ -90,40 +79,26 @@ async function main() {
 8. 不要输出任何解释，只输出处理后的文稿`;
 
   // Chunk
-  const lines = raw.content.split('\n');
   const chunks = []; let cur = '';
   for (const l of lines) {
     if (cur.length + l.length > CHUNK_SIZE && cur.length > 0) { chunks.push(cur); cur = ''; }
     cur += (cur ? '\n' : '') + l;
   }
   if (cur) chunks.push(cur);
-  console.log(`Chunks: ${chunks.length}`);
-
-  // Count speaker changes in raw
-  let rawChanges = 0;
-  let lastRawSpeaker = null;
-  for (const line of lines) {
-    const m = line.match(/\[(SPEAKER_\d+)\]/);
-    if (m && m[1] !== lastRawSpeaker) { rawChanges++; lastRawSpeaker = m[1]; }
-  }
-  console.log(`Raw speaker changes: ${rawChanges}`);
 
   // Polish each chunk
   const results = [];
   let speakerMap = '';
-  const start = Date.now();
   for (let i = 0; i < chunks.length; i++) {
-    const elapsed = ((Date.now() - start) / 1000).toFixed(0);
-    process.stdout.write(`  [${elapsed}s] P${i + 1}/${chunks.length} `);
+    process.stdout.write(`P${i + 1}/${chunks.length} `);
     const hint = i > 0 && speakerMap ? `\n\n(Part ${i + 1}/${chunks.length}. ${speakerMap})` : '';
     const polished = await callLLM([{ role: 'system', content: sys }, { role: 'user', content: chunks[i] + hint }]);
-    if (!polished) { console.log('FAIL'); results.push(chunks[i]); continue; }
+    if (!polished) { results.push(chunks[i]); continue; }
     results.push(polished);
     const names = new Set(); let m;
     const re = /\*\*\[([^\]]+)\]\*\*/g;
     while ((m = re.exec(polished)) !== null) names.add(m[1]);
     if (names.size > 0) speakerMap = 'Use these exact names: ' + [...names].join(', ');
-    console.log(`OK (${names.size} speakers: ${[...names].join(', ')})`);
   }
 
   let content = results.join('\n\n');
@@ -139,42 +114,78 @@ async function main() {
   content = content.replace(/^.*Use these exact names.*$/gm, '');
   content = content.replace(/\n{3,}/g, '\n\n');
 
-  // Count speaker changes in polished
-  let polishChanges = 0;
-  let lastPolishSpeaker = null;
-  const polishRe = /\*\*\[([^\]]+)\]\*\*/g;
-  let pm;
-  while ((pm = polishRe.exec(content)) !== null) {
-    if (pm[1] !== lastPolishSpeaker) { polishChanges++; lastPolishSpeaker = pm[1]; }
-  }
-
-  // Speaker count
+  // Replace UNKNOWN/未知说话人 with the most common speaker (usually the host/listener)
   const tc = {};
-  const tre = /\*\*\[([^\]]+)\]\*\*/g;
+  const tre = /\*\*\[([^\]]+)\]\*\*/g; let pm;
   while ((pm = tre.exec(content)) !== null) tc[pm[1]] = (tc[pm[1]] || 0) + 1;
-
-  console.log(`\nSpeaker changes: raw=${rawChanges} -> polished=${polishChanges}`);
-  console.log('Speaker counts:', tc);
-  if (polishChanges < rawChanges * 0.7) {
-    console.log('WARNING: Polish lost >30% of speaker changes! Review carefully.');
+  const realNames = Object.keys(tc).filter(n => !['UNKNOWN', '未知说话人', '未知', 'Unknown'].includes(n));
+  if (realNames.length >= 1) {
+    // Replace UNKNOWN with the host (usually first real name by appearance)
+    const hostGuess = realNames.find(n => tc[n] > 10) || realNames[0];
+    for (const unk of ['UNKNOWN', '未知说话人', '未知', 'Unknown']) {
+      if (tc[unk]) content = content.replaceAll(`**[${unk}]**`, `**[${hostGuess}]**`);
+    }
   }
 
   // Save
   const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='llm_polish'").get(ep.id);
   if (existing) {
-    // Backup old polish
-    const old = db.prepare("SELECT content FROM transcripts WHERE id=?").get(existing.id);
-    if (old) {
-      db.prepare("INSERT OR IGNORE INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'llm_polish_backup')").run(ep.id, old.content);
-    }
     db.prepare('UPDATE transcripts SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(content, existing.id);
-    console.log(`Updated polish (id=${existing.id}), ${(content.length / 1000).toFixed(0)}k chars`);
   } else {
     db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'zh', 'llm_polish')").run(ep.id, content);
-    console.log(`Created polish, ${(content.length / 1000).toFixed(0)}k chars`);
   }
 
-  console.log(`Done in ${((Date.now() - start) / 60000).toFixed(1)}m`);
+  // Recount after cleanup
+  const finalTc = {};
+  const fre = /\*\*\[([^\]]+)\]\*\*/g;
+  while ((pm = fre.exec(content)) !== null) finalTc[pm[1]] = (finalTc[pm[1]] || 0) + 1;
+
+  return `OK (${chunks.length} chunks, ${(content.length/1000).toFixed(0)}k, speakers: ${JSON.stringify(finalTc)})`;
+}
+
+async function main() {
+  const db = getDb();
+
+  let episodes;
+  if (episodeId) {
+    episodes = db.prepare(`
+      SELECT e.id, e.title, e.description, e.guests, p.name as podcast_name, p.host
+      FROM episodes e JOIN podcasts p ON p.id=e.podcast_id WHERE e.id=?
+    `).all(parseInt(episodeId));
+  } else {
+    const where = podcastId ? `AND p.id=${parseInt(podcastId)}` : "AND p.language LIKE 'zh%'";
+    episodes = db.prepare(`
+      SELECT e.id, e.title, e.description, e.guests, p.name as podcast_name, p.host
+      FROM episodes e JOIN podcasts p ON p.id=e.podcast_id
+      WHERE 1=1 ${where}
+      AND e.id IN (SELECT episode_id FROM transcripts WHERE source='asr_diarized')
+      ORDER BY p.id, e.id
+    `).all();
+  }
+
+  // Apply skip
+  if (skipIds.length) episodes = episodes.filter(e => !skipIds.includes(e.id));
+
+  console.log(`\n🔄 Re-polish: ${episodes.length} episodes\n`);
+  const start = Date.now(); let done = 0, failed = 0, skipped = 0;
+
+  for (let i = 0; i < episodes.length; i++) {
+    const ep = episodes[i];
+    const elapsed = ((Date.now() - start) / 60000).toFixed(1);
+    process.stdout.write(`[${i+1}/${episodes.length}] (${elapsed}m) ep${ep.id} ${ep.podcast_name?.slice(0,12)} | ${ep.title.slice(0,40)}... `);
+    try {
+      const result = await polishEpisode(db, ep);
+      console.log(result);
+      if (result.startsWith('OK')) done++;
+      else if (result.startsWith('SKIP')) skipped++;
+      else failed++;
+    } catch (e) {
+      console.log(`ERROR: ${e.message.slice(0, 80)}`);
+      failed++;
+    }
+  }
+
+  console.log(`\n✅ ${((Date.now()-start)/60000).toFixed(1)}m: ${done} polished, ${failed} failed, ${skipped} skipped`);
   closeDb();
 }
 

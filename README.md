@@ -127,6 +127,13 @@ Runs the full API test suite (~50 test cases) covering CRUD operations, search, 
 | `node scripts/translate-to-zh.js` | Translate English transcripts to Chinese |
 | `node scripts/batch-polish.js` | LLM-powered transcript polishing |
 
+## Codex Skills
+
+This repo now includes repo-local Codex skills under [`.codex/skills`](/home/mhliu/podcast-transcript-forum/.codex/skills) for the two workflows that are most repetitive here:
+
+- [`podcast-transcript-pipeline`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-transcript-pipeline/SKILL.md) for episode updates, ASR, repolish, postprocess, and transcript QA.
+- [`podcast-forum-deploy`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-forum-deploy/SKILL.md) for main-repo builds, `newserver` deployment, restart, and verification.
+
 ## License
 
 ISC

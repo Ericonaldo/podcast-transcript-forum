@@ -20,6 +20,8 @@ const LD_PATH = '/home/mhliu/miniconda3/pkgs/libcublas-12.6.4.1-0/lib:' + (proce
 const args = process.argv.slice(2);
 const episodeId = args.find(a => a.startsWith('--episode-id='))?.split('=')[1];
 const podcastId = args.find(a => a.startsWith('--podcast-id='))?.split('=')[1];
+const forceAll = args.includes('--force');
+const keepRaw = args.includes('--keep-raw');
 
 function downloadAudio(url, outFile) {
   if (url.includes('bilibili')) {
@@ -72,7 +74,7 @@ except Exception as e:
     sys.stderr.write(f"  Could not tune params: {e}\\n")
 
 # Run standard diarization
-result = pipeline({"waveform": waveform, "sample_rate": sr}, num_speakers=2)
+result = pipeline({"waveform": waveform, "sample_rate": sr})
 diarization = getattr(result, 'speaker_diarization', None) or result
 rows = []
 try:
@@ -267,7 +269,7 @@ async function main() {
 
     // Check if already has diarized version
     const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='asr_diarized'").get(ep.id);
-    if (existing && !episodeId) { console.log('SKIP(already diarized)'); skipped++; continue; }
+    if (existing && !episodeId && !forceAll) { console.log('SKIP(already diarized)'); skipped++; continue; }
 
     const audioUrl = ep.audio_url || ep.episode_url;
     const tmpBase = `/data/podcast-tmp/diar_${ep.id}`;

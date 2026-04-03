@@ -1,0 +1,4 @@
+interface:
+  display_name: "Forum Deploy"
+  short_description: "Deploy PodScribe safely from main repo build to newserver"
+  default_prompt: "Use the podcast forum deploy skill for this repository, follow the worktree-safe deployment sequence, and verify the deployed service after restart."

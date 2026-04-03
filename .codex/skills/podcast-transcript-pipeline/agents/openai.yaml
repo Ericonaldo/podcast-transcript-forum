@@ -1,0 +1,4 @@
+interface:
+  display_name: "Transcript Pipeline"
+  short_description: "Run the repo's update, ASR, repolish, postprocess, and transcript QA workflows"
+  default_prompt: "Use the podcast transcript pipeline skill for this repository, choose the smallest safe workflow step, and validate transcript quality after the change."
