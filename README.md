@@ -127,6 +127,7 @@ Runs the full API test suite (~50 test cases) covering CRUD operations, search, 
 | `node scripts/translate-to-zh.js` | Translate English transcripts to Chinese |
 | `node scripts/batch-polish.js` | LLM-powered transcript polishing |
 | `npm run audit:podcast -- --podcast-id=23` | Audit one podcast for duplicate translations, speaker-label drift, and source-language mismatches |
+| `node scripts/repair-podcast-23.js --episodes=...` | Repair Dwarkesh Podcast batches by recovering sources, canonicalizing speaker labels, and deduplicating translations |
 
 ## Codex Skills
 

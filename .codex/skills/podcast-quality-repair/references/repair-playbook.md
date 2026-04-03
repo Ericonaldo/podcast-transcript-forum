@@ -24,3 +24,11 @@ node scripts/verify-speaker-tags.js
 node scripts/check-ep.js <episodeId>
 npm run postprocess -- --episode-id=<id>
 ```
+
+## Repo shortcut for podcast 23
+
+Use the targeted fixer when repairing Dwarkesh Podcast batches:
+
+```bash
+node scripts/repair-podcast-23.js --episodes=354,355,356,368
+```

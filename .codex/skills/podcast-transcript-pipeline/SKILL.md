@@ -1,6 +1,11 @@
 ---
 name: podcast-transcript-pipeline
-description: Use when working on this repo's transcript ingestion and repair workflow: fetching latest podcast episodes, running ASR plus diarization, re-polishing existing transcripts, postprocessing speaker tags, or auditing transcript quality issues such as wrong speaker splits, malformed tags, and bad paragraphing.
+description: >-
+  Use when working on this repo's transcript ingestion and repair workflow:
+  fetching latest podcast episodes, running ASR plus diarization,
+  re-polishing existing transcripts, postprocessing speaker tags, or auditing
+  transcript quality issues such as wrong speaker splits, malformed tags, and
+  bad paragraphing.
 ---
 
 # Podcast Transcript Pipeline
