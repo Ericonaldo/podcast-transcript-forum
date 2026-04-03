@@ -25,7 +25,8 @@ const noPolish = args.includes('--no-polish');
 const polishOnly = args.includes('--polish-only'); // skip download+ASR, re-polish from existing asr transcript
 const reprocess = args.includes('--reprocess'); // re-do even if transcript exists
 
-function runWhisperxDiarize(audioFile) {
+function runWhisperxDiarize(audioFile, lang) {
+  const wxLang = (lang || 'zh').replace(/[-_].*/, ''); // 'zh', 'en', etc.
   const script = `
 import os, json, torch, torchaudio, whisperx, warnings, pandas as pd
 warnings.filterwarnings('ignore')
@@ -33,19 +34,20 @@ os.environ['HF_TOKEN'] = '${HF_TOKEN}'
 
 device = "cuda"
 audio_file = "${audioFile}"
+wx_lang = "${wxLang}"
 
 # 1. Load audio
 waveform, sr = torchaudio.load(audio_file)
 audio_np = whisperx.load_audio(audio_file)
 
 # 2. Transcribe
-model = whisperx.load_model("large-v3", device, compute_type="float16", language="zh")
-result = model.transcribe(audio_np, batch_size=16, language="zh")
+model = whisperx.load_model("large-v3", device, compute_type="float16", language=wx_lang)
+result = model.transcribe(audio_np, batch_size=16, language=wx_lang)
 n_segs = len(result['segments'])
 import sys; sys.stderr.write(f"  Transcribed: {n_segs} segments\\n")
 
 # 3. Align
-model_a, metadata = whisperx.load_align_model(language_code="zh", device=device)
+model_a, metadata = whisperx.load_align_model(language_code=wx_lang, device=device)
 result = whisperx.align(result["segments"], model_a, metadata, audio_np, device)
 
 # 4. Diarize
@@ -248,11 +250,10 @@ async function processEpisode(db, ep) {
 
     // ASR + Diarize
     process.stdout.write('ASR+Diarize... ');
-    const segments = runWhisperxDiarize(dlFile);
+    const segments = runWhisperxDiarize(dlFile, lang);
     const rawText = segsToText(segments);
 
     // Save raw ASR with speaker labels
-    const lang = ep.language || 'zh';
     db.prepare("INSERT OR REPLACE INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', ?, 'asr')").run(ep.id, rawText, lang);
 
     if (!noPolish) {
