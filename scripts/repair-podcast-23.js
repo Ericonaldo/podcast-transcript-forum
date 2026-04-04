@@ -128,39 +128,6 @@ async function callLLM(messages) {
   return data?.choices?.[0]?.message?.content?.trim() || '';
 }
 
-function fetchEnglishSubtitles(url) {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dwarkesh-subs-'));
-  const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s');
-  const result = spawnSync(
-    'yt-dlp',
-    [
-      '--cookies',
-      'cookies.txt',
-      '--skip-download',
-      '--write-sub',
-      '--sub-langs',
-      'en',
-      '--output',
-      outputTemplate,
-      url,
-    ],
-    {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      timeout: 180000,
-    }
-  );
-
-  if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || 'yt-dlp failed');
-  }
-
-  const file = fs.readdirSync(tmpDir).find(name => name.endsWith('.en.vtt'));
-  if (!file) throw new Error('No English subtitle file downloaded');
-  const content = fs.readFileSync(path.join(tmpDir, file), 'utf8');
-  return { vtt: content, text: stripVtt(content) };
-}
-
 function fetchOfficialPage(url) {
   const result = spawnSync('curl', ['-L', '--max-time', '30', url], {
     encoding: 'utf8',
@@ -334,10 +301,7 @@ async function repair() {
         recoveredText = rebuiltFromOfficial.replace(/\*\*\[[^\]]+\]\*\*\s*/g, '').trim();
         recoveredRaw = recoveredText;
       } else {
-        console.log('  fetch English subtitles from YouTube');
-        const subtitle = fetchEnglishSubtitles(episode.episode_url);
-        recoveredText = subtitle.text;
-        recoveredRaw = subtitle.vtt;
+        throw new Error(`No ASR-first source recovery path configured for ep${episode.id}; do not fall back to YouTube subtitles`);
       }
 
       updateTranscript.run(recoveredRaw, 'en', source.id);

@@ -2,13 +2,10 @@
 /**
  * Translate English polished transcripts to Chinese.
  * For episodes that already have an English polished/raw transcript but no Chinese version.
- * Also checks if YouTube has zh-Hans captions first.
+ * Always translates from the English transcript source instead of importing
+ * YouTube captions, so speaker tags stay aligned with the ASR-based pipeline.
  */
 require('dotenv').config();
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
 const { getDb, closeDb } = require('../server/src/db');
 
 const API_KEY = 'sk-3ODOY96LmDCFgcBY1d1b586c01E448BcAbB5115bD8FbD2Fc';
@@ -55,32 +52,6 @@ async function callLLM(text) {
   }
 }
 
-function tryYouTubeZhCaptions(episodeUrl) {
-  if (!episodeUrl || !episodeUrl.includes('youtube.com')) return null;
-  const videoId = (episodeUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/) || [])[1];
-  if (!videoId) return null;
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zh-cap-'));
-  try {
-    for (const lang of ['zh-Hans', 'zh-Hans-zh-CN', 'zh-CN', 'zh']) {
-      for (const flag of ['--write-sub', '--write-auto-sub']) {
-        try {
-          execSync(`yt-dlp ${flag} --sub-lang ${lang} --skip-download --sub-format vtt -o "${tmpDir}/%(id)s" https://www.youtube.com/watch?v=${videoId} 2>/dev/null`, { timeout: 20000 });
-          const files = fs.readdirSync(tmpDir).filter(f => f.endsWith('.vtt'));
-          if (files.length > 0) {
-            const content = fs.readFileSync(path.join(tmpDir, files[0]), 'utf8');
-            files.forEach(f => { try { fs.unlinkSync(path.join(tmpDir, f)); } catch (e) {} });
-            if (content.length > 500) return { content, lang, source: flag === '--write-sub' ? 'youtube_manual' : 'youtube_auto' };
-          }
-        } catch (e) {}
-      }
-    }
-  } finally {
-    try { fs.rmSync(tmpDir, { recursive: true }); } catch (e) {}
-  }
-  return null;
-}
-
 async function main() {
   const db = getDb();
 
@@ -97,27 +68,14 @@ async function main() {
 
   console.log(`\n🌐 Translate to Chinese: ${episodes.length} episodes\n`);
   const start = Date.now();
-  let done = 0, ytDone = 0, llmDone = 0, failed = 0;
+  let done = 0, llmDone = 0, failed = 0;
 
   for (let idx = 0; idx < episodes.length; idx++) {
     const ep = episodes[idx];
     const elapsed = ((Date.now() - start) / 60000).toFixed(1);
     process.stdout.write(`[${idx + 1}/${episodes.length}] (${elapsed}m) ${ep.podcast_name.slice(0, 12)} | ${ep.title.slice(0, 40)}... `);
 
-    // Try YouTube Chinese captions first
-    const ytCap = tryYouTubeZhCaptions(ep.episode_url);
-    if (ytCap) {
-      db.prepare('INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, ?, ?, ?)').run(
-        ep.episode_id, ytCap.content, 'vtt', ytCap.lang, ytCap.source
-      );
-      console.log(`YT-${ytCap.lang} (${(ytCap.content.length / 1000).toFixed(0)}k)`);
-      ytDone++;
-      done++;
-      continue;
-    }
-
-    // Fallback: translate the English polished (or raw) transcript via LLM
-    const enTr = db.prepare("SELECT content FROM transcripts WHERE episode_id=? AND (source='llm_polish' OR source LIKE 'youtube%') ORDER BY CASE WHEN source='llm_polish' THEN 0 ELSE 1 END LIMIT 1").get(ep.episode_id);
+    const enTr = db.prepare("SELECT content FROM transcripts WHERE episode_id=? AND source IN ('llm_polish','asr','rss_transcript') ORDER BY CASE source WHEN 'llm_polish' THEN 0 WHEN 'asr' THEN 1 ELSE 2 END LIMIT 1").get(ep.episode_id);
     if (!enTr || enTr.content.length > MAX_LEN) {
       console.log('SKIP (no transcript or too large)');
       failed++;
@@ -153,7 +111,7 @@ async function main() {
     }
   }
 
-  console.log(`\n✅ ${((Date.now() - start) / 60000).toFixed(1)}m: ${done} done (${ytDone} YouTube, ${llmDone} LLM translated), ${failed} failed`);
+  console.log(`\n✅ ${((Date.now() - start) / 60000).toFixed(1)}m: ${done} done (${llmDone} LLM translated), ${failed} failed`);
   closeDb();
 }
 

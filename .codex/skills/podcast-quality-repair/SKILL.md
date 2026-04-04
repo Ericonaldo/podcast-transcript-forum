@@ -12,6 +12,7 @@ Use this skill when one podcast has repeated transcript problems across many epi
 - One podcast has inconsistent host or guest labels across episodes.
 - `llm_translate` rows are duplicated.
 - An English podcast accidentally has Chinese `youtube_manual` or `llm_polish` transcripts.
+- A podcast still relies on legacy YouTube caption rows instead of ASR-based transcript sources.
 - Speaker tags are embedded mid-paragraph, so a new speaker does not start a new paragraph.
 - You need to decide which episodes only need normalization and which require source recovery or re-diarization.
 
@@ -30,6 +31,7 @@ node scripts/audit-podcast-transcripts.js --podcast-id=<id>
 - Recover source transcript first
 - Re-diarize or manually review speaker attribution
 - Inline speaker split cleanup
+- Replace legacy YouTube caption source with ASR
 
 3. Only after the audit, run the smallest safe fix:
 
@@ -37,6 +39,7 @@ node scripts/audit-podcast-transcripts.js --podcast-id=<id>
 - Inline-speaker split repair for paragraph-boundary mistakes
 - Re-polish only when the source transcript is valid
 - Recover source transcript before any repolish if the source language is wrong
+- If only `youtube_auto` or `youtube_manual` exists, regenerate from ASR before downstream fixes
 
 4. Re-run the audit after each batch until the issue counts drop to zero or to the remaining known hard cases.
 
@@ -46,6 +49,7 @@ node scripts/audit-podcast-transcripts.js --podcast-id=<id>
 - Replace `Guest` or `嘉宾` with the real guest name only when metadata makes the mapping unambiguous.
 - Treat `Host`, `Speaker 1`, `主持人`, and `嘉宾` as red flags, not finished output.
 - Treat `**[Name]**` appearing in the middle of a paragraph as a structural defect, not a style variant.
+- Treat `youtube_auto` and `youtube_manual` as temporary legacy imports, not preferred final sources.
 - For English podcasts, `llm_polish` should stay English. Chinese belongs in `llm_translate`.
 - If generic labels dominate and real names are absent, assume diarization or mapping may be wrong.
 

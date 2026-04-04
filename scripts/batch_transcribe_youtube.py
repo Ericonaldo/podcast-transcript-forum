@@ -2,7 +2,8 @@
 """
 Batch transcription for YouTube-only episodes.
 Downloads audio via yt-dlp, then transcribes with faster-whisper.
-Also tries to get YouTube captions first (cheaper than ASR).
+Always starts from ASR instead of YouTube captions so speaker-aware repair
+can rely on a consistent source.
 """
 
 import os
@@ -47,47 +48,6 @@ def get_youtube_episodes_without_transcripts(db_path):
     episodes = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return episodes
-
-
-def try_get_youtube_captions(video_url, temp_dir):
-    """Try to download YouTube captions using yt-dlp."""
-    try:
-        # Try manual captions first (better quality)
-        for lang in ['zh-Hans', 'zh', 'en', 'zh-TW']:
-            vtt_path = os.path.join(temp_dir, f'caption.{lang}.vtt')
-            result = subprocess.run(
-                ['yt-dlp', '--write-sub', '--sub-lang', lang,
-                 '--skip-download', '--sub-format', 'vtt',
-                 '-o', os.path.join(temp_dir, 'caption'),
-                 video_url],
-                capture_output=True, text=True, timeout=60
-            )
-            if os.path.exists(vtt_path):
-                with open(vtt_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                os.remove(vtt_path)
-                return content, lang, 'youtube_manual'
-
-        # Try auto captions
-        for lang in ['zh-Hans', 'zh', 'en', 'zh-TW']:
-            vtt_path = os.path.join(temp_dir, f'caption.{lang}.vtt')
-            result = subprocess.run(
-                ['yt-dlp', '--write-auto-sub', '--sub-lang', lang,
-                 '--skip-download', '--sub-format', 'vtt',
-                 '-o', os.path.join(temp_dir, 'caption'),
-                 video_url],
-                capture_output=True, text=True, timeout=60
-            )
-            if os.path.exists(vtt_path):
-                with open(vtt_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                os.remove(vtt_path)
-                return content, lang, 'youtube_auto'
-
-        return None, None, None
-    except Exception as e:
-        print(f"  Caption download error: {e}")
-        return None, None, None
 
 
 def download_youtube_audio(video_url, output_path):
@@ -211,7 +171,6 @@ def main():
     parser = argparse.ArgumentParser(description='Batch transcribe YouTube episodes')
     parser.add_argument('--limit', type=int, default=0, help='Max episodes to process')
     parser.add_argument('--podcast', type=str, default='', help='Filter by podcast name')
-    parser.add_argument('--captions-only', action='store_true', help='Only try captions, skip ASR')
     parser.add_argument('--db', type=str, default=DB_PATH, help='Database path')
     args = parser.parse_args()
 
@@ -235,7 +194,6 @@ def main():
 
     success_count = 0
     fail_count = 0
-    caption_count = 0
     asr_count = 0
     failures = []
     model = None
@@ -252,26 +210,8 @@ def main():
         print(f"  URL: {video_url}")
 
         try:
-            # Step 1: Try captions first
-            print("  Trying YouTube captions...")
-            caption_content, caption_lang, caption_source = try_get_youtube_captions(video_url, TEMP_DIR)
-
-            if caption_content and len(caption_content.strip()) > 100:
-                print(f"  Got {caption_source} captions in {caption_lang} ({len(caption_content)} chars)")
-                save_transcript(db_path, ep_id, caption_content, caption_lang, source=caption_source, fmt='vtt')
-                print(f"  Saved captions to database!")
-                success_count += 1
-                caption_count += 1
-                continue
-
-            if args.captions_only:
-                print(f"  No captions available, skipping (captions-only mode)")
-                failures.append({'id': ep_id, 'title': title, 'podcast': podcast, 'reason': 'No YouTube captions'})
-                fail_count += 1
-                continue
-
-            # Step 2: Download audio and transcribe with Whisper
-            print("  No captions, downloading audio for ASR...")
+            # Step 1: Download audio and transcribe with Whisper
+            print("  Downloading audio for ASR...")
             audio_path = os.path.join(TEMP_DIR, f"yt_{ep_id}")
             wav_path = os.path.join(TEMP_DIR, f"yt_{ep_id}.wav")
 
@@ -335,7 +275,7 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"YOUTUBE TRANSCRIPTION COMPLETE")
-    print(f"  Success: {success_count} (captions: {caption_count}, ASR: {asr_count})")
+    print(f"  Success: {success_count} (ASR: {asr_count})")
     print(f"  Failed: {fail_count}")
     print(f"  Total: {len(episodes)}")
 

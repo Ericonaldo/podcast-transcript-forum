@@ -122,9 +122,9 @@ Runs the full API test suite (~50 test cases) covering CRUD operations, search, 
 | Script | Description |
 |--------|-------------|
 | `npm run seed` | Seed database with sample data |
-| `npm run crawl` | Crawl podcast sources for transcripts |
+| `npm run crawl` | Crawl podcast sources for episode inventory and RSS transcripts; YouTube episodes are queued for ASR-first processing |
 | `node scripts/asr-zh.js` | Local ASR pipeline for Chinese podcasts |
-| `node scripts/translate-to-zh.js` | Translate English transcripts to Chinese |
+| `node scripts/translate-to-zh.js` | Translate English transcripts to Chinese from ASR/polished English sources |
 | `node scripts/batch-polish.js` | LLM-powered transcript polishing |
 | `npm run audit:podcast -- --podcast-id=23` | Audit one podcast for duplicate translations, speaker-label drift, and source-language mismatches |
 | `node scripts/repair-podcast-23.js --episodes=...` | Repair Dwarkesh Podcast batches by recovering sources, canonicalizing speaker labels, and deduplicating translations |
@@ -138,6 +138,8 @@ This repo now includes repo-local Codex skills under [`.codex/skills`](/home/mhl
 - [`podcast-transcript-pipeline`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-transcript-pipeline/SKILL.md) for episode updates, ASR, repolish, postprocess, inline-speaker cleanup, and transcript QA.
 - [`podcast-forum-deploy`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-forum-deploy/SKILL.md) for main-repo builds, `newserver` deployment, restart, and verification.
 - [`podcast-quality-repair`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-quality-repair/SKILL.md) for podcast-level audit and fast repair planning when speaker labels, transcript language, translation rows, or paragraph splits drift over time.
+
+Transcript policy: for YouTube episodes, start from ASR as the default source of truth. Legacy `youtube_auto` and `youtube_manual` rows can exist in old data, but new repair and ingestion flows should replace them instead of building on them.
 
 ## License
 

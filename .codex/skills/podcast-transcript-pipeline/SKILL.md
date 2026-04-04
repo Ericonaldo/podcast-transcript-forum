@@ -19,6 +19,7 @@ Use this skill for repo-specific transcript operations in `podcast-transcript-fo
 - The task is to re-polish existing transcripts without retranscribing.
 - The task is to clean malformed speaker tags or paragraph structure.
 - The task is to inspect transcript quality issues before or after edits.
+- The task involves a YouTube episode and you need a transcript source. Use ASR first, not YouTube captions.
 
 ## Command routing
 
@@ -40,6 +41,7 @@ Read [references/commands.md](references/commands.md) for the fuller command set
 
 - Re-polish must preserve the original transcript text and order. Do not retranscribe when the task is repolish-only.
 - Speaker naming should use episode metadata and description to avoid homophone mistakes.
+- Treat `youtube_auto` and `youtube_manual` as legacy fallback rows to replace, not preferred sources of truth.
 - After polishing, always run postprocess cleanup so leaked prompt hints and malformed tag variants are removed.
 - When a speaker tag appears mid-paragraph, use the inline-speaker repair script instead of hand-editing transcript rows.
 - Do not merge across speaker boundaries. Same-speaker consecutive lines can be merged into one paragraph.
@@ -48,11 +50,12 @@ Read [references/commands.md](references/commands.md) for the fuller command set
 ## Working pattern
 
 1. Identify the source state first: `asr`, `asr_diarized`, `llm_polish`, or missing transcript.
-2. Choose the minimum pipeline step that fixes the issue.
-3. Run the relevant repo script, not an ad hoc rewrite.
-4. Postprocess if polished content changed.
-5. If paragraph boundaries still look wrong because a new speaker starts mid-line, run the inline-speaker fixer.
-6. Run a QA pass using the audit scripts or direct DB inspection.
+2. If the only source is a YouTube caption row, replace it by starting from ASR before polishing.
+3. Choose the minimum pipeline step that fixes the issue.
+4. Run the relevant repo script, not an ad hoc rewrite.
+5. Postprocess if polished content changed.
+6. If paragraph boundaries still look wrong because a new speaker starts mid-line, run the inline-speaker fixer.
+7. Run a QA pass using the audit scripts or direct DB inspection.
 
 ## QA checklist
 

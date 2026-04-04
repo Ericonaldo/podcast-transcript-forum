@@ -3,10 +3,10 @@
  * PodScribe Comprehensive Podcast Crawler
  *
  * Strategy:
- * 1. YouTube channels → yt-dlp for captions (highest priority)
- * 2. RSS feeds → episode metadata + audio URLs
+ * 1. RSS feeds → episode metadata + audio URLs
+ * 2. YouTube channels → episode inventory only
  * 3. Cross-reference: check if RSS episodes have YouTube equivalents
- * 4. Generate needs-asr.md for episodes without transcripts
+ * 4. Generate needs-asr.md for episodes that must start from ASR
  */
 
 const { getDb } = require('../server/src/db');
@@ -19,7 +19,7 @@ const { spawnSync } = require('child_process');
 
 // ─── Podcast catalog ──────────────────────────────────────────────────────────
 
-// YouTube channels (yt-dlp will attempt caption download for all)
+// YouTube channels (used for episode discovery; transcript creation starts from ASR)
 const YOUTUBE_CHANNELS = [
   // ════ PRIORITY: 张小珺 / 罗永浩 / WhynotTV ════
   {
@@ -440,30 +440,6 @@ function getChannelVideos(channelId, maxVideos = 50) {
   return videos.filter(v => v.videoId && v.videoId.match(/^[A-Za-z0-9_-]{11}$/));
 }
 
-function downloadCaption(videoId, lang = 'en', tmpDir) {
-  const outTemplate = path.join(tmpDir, '%(id)s');
-  // Try manual subtitles first, then auto
-  for (const flag of ['--write-sub', '--write-auto-sub']) {
-    const result = ytDlp([
-      flag, '--sub-lang', lang, '--sub-format', 'vtt',
-      '--skip-download', '--no-playlist', '--quiet',
-      '-o', outTemplate,
-      `https://www.youtube.com/watch?v=${videoId}`,
-    ], { timeout: 45000 });
-
-    const files = fs.readdirSync(tmpDir).filter(f => f.endsWith('.vtt'));
-    if (files.length > 0) {
-      const content = fs.readFileSync(path.join(tmpDir, files[0]), 'utf8');
-      // Clean up for next attempt
-      files.forEach(f => fs.unlinkSync(path.join(tmpDir, f)));
-      if (content.length > 500) {
-        return { content, language: lang, isAuto: flag === '--write-auto-sub' };
-      }
-    }
-  }
-  return null;
-}
-
 function getVideoMetadata(videoId) {
   const result = ytDlp([
     '--print', 'title', '--print', 'upload_date', '--print', 'duration',
@@ -537,9 +513,7 @@ function saveTranscript(db, episodeId, content, format, language, source) {
 
 // ─── Phase 1: YouTube channel crawl ─────────────────────────────────────────
 async function crawlYouTubeChannel(db, meta, stats, needsAsr) {
-  const { channelId, language } = meta;
-  const lang = language === 'zh' ? 'zh-Hans-zh-CN' : 'en';
-  const fallbackLang = language === 'zh' ? 'zh-Hans' : 'en';
+  const { channelId } = meta;
 
   console.log(`  📥 Fetching channel video list...`);
   const videos = getChannelVideos(channelId, 50);
@@ -547,56 +521,32 @@ async function crawlYouTubeChannel(db, meta, stats, needsAsr) {
   console.log(`  Found ${videos.length} videos`);
 
   const podcastId = upsertPodcast(db, meta);
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podscribe-'));
 
-  try {
-    for (const video of videos) {
-      if (!video.videoId) continue;
-      const episodeUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+  for (const video of videos) {
+    if (!video.videoId) continue;
+    const episodeUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+    const title = video.title;
+    const epData = {
+      title, description: '', episode_url: episodeUrl,
+      audio_url: '', youtube_id: video.videoId,
+      published_date: null, duration: null, guests: '',
+    };
 
-      // Get metadata if title seems wrong
-      let title = video.title;
-      let epData = {
-        title, description: '', episode_url: episodeUrl,
-        audio_url: '', youtube_id: video.videoId,
-        published_date: null, duration: null, guests: '',
-      };
+    const { id: episodeId, isNew } = upsertEpisode(db, podcastId, epData);
+    if (isNew) stats.newEpisodes++;
 
-      const { id: episodeId, isNew } = upsertEpisode(db, podcastId, epData);
-      if (isNew) stats.newEpisodes++;
-
-      if (hasTranscript(db, episodeId)) {
-        process.stdout.write('.');
-        continue;
-      }
-
-      // Try caption download
-      let caption = downloadCaption(video.videoId, lang, tmpDir);
-      if (!caption && lang !== fallbackLang) {
-        caption = downloadCaption(video.videoId, fallbackLang, tmpDir);
-      }
-      // Also try English as last resort for Chinese channels
-      if (!caption && language === 'zh') {
-        caption = downloadCaption(video.videoId, 'en', tmpDir);
-      }
-
-      if (caption) {
-        saveTranscript(db, episodeId, caption.content, 'vtt', caption.language,
-          caption.isAuto ? 'youtube_auto' : 'youtube_manual');
-        stats.newTranscripts++;
-        process.stdout.write('✓');
-      } else {
-        needsAsr.push({
-          podcast: meta.name, host: meta.host, category: meta.category,
-          episode: title, episode_url: episodeUrl, youtube_id: video.videoId,
-          reason: 'YouTube: no captions available',
-          action: 'Run Whisper ASR on audio; or use EchoShell while watching',
-        });
-        process.stdout.write('✗');
-      }
+    if (hasTranscript(db, episodeId)) {
+      process.stdout.write('.');
+      continue;
     }
-  } finally {
-    try { fs.rmSync(tmpDir, { recursive: true }); } catch {}
+
+    needsAsr.push({
+      podcast: meta.name, host: meta.host, category: meta.category,
+      episode: title, episode_url: episodeUrl, youtube_id: video.videoId,
+      reason: 'YouTube episode inventory only; transcript source must start from ASR',
+      action: 'Run WhisperX ASR + diarization on audio; or use EchoShell while watching',
+    });
+    process.stdout.write('A');
   }
   console.log('');
 }
@@ -614,55 +564,37 @@ async function crawlRssFeed(db, meta, stats, needsAsr) {
   console.log(`  Found ${episodes.length} episodes in RSS`);
 
   const podcastId = upsertPodcast(db, meta);
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podscribe-rss-'));
 
-  try {
-    for (const ep of episodes) {
-      const { id: episodeId, isNew } = upsertEpisode(db, podcastId, ep);
-      if (isNew) stats.newEpisodes++;
+  for (const ep of episodes) {
+    const { id: episodeId, isNew } = upsertEpisode(db, podcastId, ep);
+    if (isNew) stats.newEpisodes++;
 
-      if (hasTranscript(db, episodeId)) { process.stdout.write('.'); continue; }
+    if (hasTranscript(db, episodeId)) { process.stdout.write('.'); continue; }
 
-      // Check for inline podcast:transcript
-      if (ep.transcript_url && (ep.transcript_type.includes('text') || ep.transcript_type.includes('srt') || ep.transcript_type.includes('vtt'))) {
-        try {
-          const r = await fetchUrl(ep.transcript_url);
-          if (r.status === 200 && r.body.length > 200) {
-            const fmt = ep.transcript_type.includes('vtt') ? 'vtt' :
-                        ep.transcript_type.includes('srt') ? 'srt' : 'plain';
-            saveTranscript(db, episodeId, r.body, fmt, meta.language, 'rss_transcript');
-            stats.newTranscripts++;
-            process.stdout.write('T');
-            continue;
-          }
-        } catch {}
-      }
-
-      // Try YouTube if episode has a YouTube link
-      if (ep.youtube_id) {
-        const caption = downloadCaption(ep.youtube_id, meta.language === 'zh' ? 'zh' : 'en', tmpDir);
-        if (caption) {
-          saveTranscript(db, episodeId, caption.content, 'vtt', caption.language,
-            caption.isAuto ? 'youtube_auto' : 'youtube_manual');
+    // Check for inline podcast:transcript
+    if (ep.transcript_url && (ep.transcript_type.includes('text') || ep.transcript_type.includes('srt') || ep.transcript_type.includes('vtt'))) {
+      try {
+        const r = await fetchUrl(ep.transcript_url);
+        if (r.status === 200 && r.body.length > 200) {
+          const fmt = ep.transcript_type.includes('vtt') ? 'vtt' :
+                      ep.transcript_type.includes('srt') ? 'srt' : 'plain';
+          saveTranscript(db, episodeId, r.body, fmt, meta.language, 'rss_transcript');
           stats.newTranscripts++;
-          process.stdout.write('Y');
+          process.stdout.write('T');
           continue;
         }
-      }
-
-      // No transcript - record for ASR
-      needsAsr.push({
-        podcast: meta.name, host: meta.host, category: meta.category,
-        episode: ep.title, episode_url: ep.episode_url,
-        audio_url: ep.audio_url, published_date: ep.published_date,
-        youtube_id: ep.youtube_id || '',
-        reason: ep.audio_url ? 'Audio only (RSS)' : 'No audio URL',
-        action: ep.audio_url ? 'Run Whisper ASR: whisper audio.mp3 --language ' + (meta.language === 'zh' ? 'zh' : 'en') : 'Find audio source',
-      });
-      process.stdout.write('_');
+      } catch {}
     }
-  } finally {
-    try { fs.rmSync(tmpDir, { recursive: true }); } catch {}
+
+    needsAsr.push({
+      podcast: meta.name, host: meta.host, category: meta.category,
+      episode: ep.title, episode_url: ep.episode_url,
+      audio_url: ep.audio_url, published_date: ep.published_date,
+      youtube_id: ep.youtube_id || '',
+      reason: ep.audio_url ? 'Audio only (RSS)' : 'No audio URL',
+      action: ep.audio_url ? 'Run WhisperX ASR + diarization on audio' : 'Find audio source',
+    });
+    process.stdout.write('_');
   }
   console.log('');
 }
@@ -689,7 +621,7 @@ function writeReport(stats, needsAsr) {
 | 成功获取文字稿 | ${stats.newTranscripts} |
 | 待 ASR 处理 | ${needsAsr.length} |
 
-**图例**: ✓=成功下载字幕 ✗=无字幕需ASR T=RSS内嵌文字稿 Y=YouTube字幕 .=已有 _=无文字稿
+**图例**: A=已入库待ASR T=RSS内嵌文字稿 .=已有 _=无文字稿
 
 ---
 
@@ -770,7 +702,7 @@ async function main() {
   const needsAsr = [];
 
   console.log('🎙️  PodScribe Mega Crawler\n');
-  console.log('Legend: ✓=caption downloaded  ✗=no caption  T=inline transcript  Y=YouTube caption  .=skip  _=needs ASR\n');
+  console.log('Legend: A=queued for ASR  T=inline transcript  .=skip  _=needs audio source\n');
 
   // Phase 1: YouTube channels
   console.log('═══════════════════════════════════════════════════════');
