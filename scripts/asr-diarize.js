@@ -24,6 +24,7 @@ const episodeId = args.find(a => a.startsWith('--episode-id='))?.split('=')[1];
 const noPolish = args.includes('--no-polish');
 const polishOnly = args.includes('--polish-only'); // skip download+ASR, re-polish from existing asr transcript
 const reprocess = args.includes('--reprocess'); // re-do even if transcript exists
+const delayMs = parseInt(args.find(a => a.startsWith('--delay='))?.split('=')[1] || '0') * 1000; // seconds between episodes
 
 function runWhisperxDiarize(audioFile, lang) {
   const wxLang = (lang || 'zh').replace(/[-_].*/, ''); // 'zh', 'en', etc.
@@ -321,6 +322,7 @@ async function main() {
       console.log(`  ERROR: ${e.message.slice(0, 80)}`);
       failed++;
     }
+    if (delayMs && i < episodes.length - 1) await new Promise(r => setTimeout(r, delayMs));
   }
 
   console.log(`\n✅ ${((Date.now() - start) / 60000).toFixed(1)}m: ${done} done, ${failed} failed`);
