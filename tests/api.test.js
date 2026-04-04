@@ -178,6 +178,27 @@ describe('Episodes API', () => {
     expect(res.body.pagination.total).toBeGreaterThan(0);
   });
 
+  test('GET /api/podcasts/:id/episodes falls back to podcast cover image when episode image is missing', async () => {
+    const coverPodcast = await request(app).post('/api/podcasts').send({
+      name: 'Cover Fallback Podcast',
+      host: 'Cover Host',
+      image_url: 'https://example.com/podcast-cover.jpg',
+    });
+
+    const createdEpisode = await request(app).post('/api/episodes').send({
+      podcast_id: coverPodcast.body.id,
+      title: 'Episode Without Image',
+      episode_url: 'https://example.com/episode-without-image',
+    });
+
+    expect(createdEpisode.status).toBe(201);
+
+    const res = await request(app).get(`/api/podcasts/${coverPodcast.body.id}/episodes`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].image_url).toBe('https://example.com/podcast-cover.jpg');
+  });
+
   test('PUT /api/episodes/:id updates episode', async () => {
     const res = await request(app).put(`/api/episodes/${episodeId}`).send({
       title: 'Episode 1 Updated',

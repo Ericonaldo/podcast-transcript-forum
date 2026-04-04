@@ -12,6 +12,7 @@ Use this skill when one podcast has repeated transcript problems across many epi
 - One podcast has inconsistent host or guest labels across episodes.
 - `llm_translate` rows are duplicated.
 - An English podcast accidentally has Chinese `youtube_manual` or `llm_polish` transcripts.
+- Speaker tags are embedded mid-paragraph, so a new speaker does not start a new paragraph.
 - You need to decide which episodes only need normalization and which require source recovery or re-diarization.
 
 ## Workflow
@@ -28,10 +29,12 @@ node scripts/audit-podcast-transcripts.js --podcast-id=<id>
 - Duplicate translation cleanup
 - Recover source transcript first
 - Re-diarize or manually review speaker attribution
+- Inline speaker split cleanup
 
 3. Only after the audit, run the smallest safe fix:
 
 - Tag cleanup and postprocess for formatting issues
+- Inline-speaker split repair for paragraph-boundary mistakes
 - Re-polish only when the source transcript is valid
 - Recover source transcript before any repolish if the source language is wrong
 
@@ -42,6 +45,7 @@ node scripts/audit-podcast-transcripts.js --podcast-id=<id>
 - Canonicalize the host to the podcast host's real full name.
 - Replace `Guest` or `嘉宾` with the real guest name only when metadata makes the mapping unambiguous.
 - Treat `Host`, `Speaker 1`, `主持人`, and `嘉宾` as red flags, not finished output.
+- Treat `**[Name]**` appearing in the middle of a paragraph as a structural defect, not a style variant.
 - For English podcasts, `llm_polish` should stay English. Chinese belongs in `llm_translate`.
 - If generic labels dominate and real names are absent, assume diarization or mapping may be wrong.
 

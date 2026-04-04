@@ -16,7 +16,9 @@
     "asr:old": "node scripts/asr-priority.js",
     "polish": "node scripts/fast-polish.js",
     "postprocess": "node scripts/postprocess-polish.js",
-    "audit:podcast": "node scripts/audit-podcast-transcripts.js"
+    "audit:podcast": "node scripts/audit-podcast-transcripts.js",
+    "audit:inline-speakers": "node scripts/audit-inline-speaker-tags.js",
+    "fix:inline-speakers": "node scripts/fix-inline-speaker-tags.js"
   },
   "jest": {
     "testEnvironment": "node",

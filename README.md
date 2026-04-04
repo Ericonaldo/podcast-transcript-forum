@@ -128,14 +128,16 @@ Runs the full API test suite (~50 test cases) covering CRUD operations, search, 
 | `node scripts/batch-polish.js` | LLM-powered transcript polishing |
 | `npm run audit:podcast -- --podcast-id=23` | Audit one podcast for duplicate translations, speaker-label drift, and source-language mismatches |
 | `node scripts/repair-podcast-23.js --episodes=...` | Repair Dwarkesh Podcast batches by recovering sources, canonicalizing speaker labels, and deduplicating translations |
+| `npm run audit:inline-speakers` | Scan all polished transcripts for speaker tags that appear mid-paragraph instead of starting a new paragraph |
+| `npm run fix:inline-speakers` | Split inline speaker tags into proper paragraph starts across the transcript database |
 
 ## Codex Skills
 
 This repo now includes repo-local Codex skills under [`.codex/skills`](/home/mhliu/podcast-transcript-forum/.codex/skills) for the two workflows that are most repetitive here:
 
-- [`podcast-transcript-pipeline`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-transcript-pipeline/SKILL.md) for episode updates, ASR, repolish, postprocess, and transcript QA.
+- [`podcast-transcript-pipeline`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-transcript-pipeline/SKILL.md) for episode updates, ASR, repolish, postprocess, inline-speaker cleanup, and transcript QA.
 - [`podcast-forum-deploy`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-forum-deploy/SKILL.md) for main-repo builds, `newserver` deployment, restart, and verification.
-- [`podcast-quality-repair`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-quality-repair/SKILL.md) for podcast-level audit and fast repair planning when speaker labels, transcript language, or translation rows drift over time.
+- [`podcast-quality-repair`](/home/mhliu/podcast-transcript-forum/.codex/skills/podcast-quality-repair/SKILL.md) for podcast-level audit and fast repair planning when speaker labels, transcript language, translation rows, or paragraph splits drift over time.
 
 ## License
 

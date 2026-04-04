@@ -130,9 +130,23 @@ router.get('/:id/episodes', (req, res) => {
 
   const total = db.prepare('SELECT COUNT(*) as count FROM episodes WHERE podcast_id = ?').get(req.params.id).count;
   const episodes = db.prepare(`
-    SELECT e.*,
+    SELECT e.id,
+           e.podcast_id,
+           e.title,
+           e.description,
+           e.published_date,
+           e.duration,
+           e.audio_url,
+           e.episode_url,
+           e.episode_number,
+           e.season_number,
+           COALESCE(e.image_url, p.image_url) as image_url,
+           e.guests,
+           e.created_at,
+           e.updated_at,
            CASE WHEN EXISTS(SELECT 1 FROM transcripts t WHERE t.episode_id = e.id) THEN 1 ELSE 0 END as has_transcript
     FROM episodes e
+    JOIN podcasts p ON p.id = e.podcast_id
     WHERE e.podcast_id = ?
     ORDER BY e.published_date DESC, e.id DESC
     LIMIT ? OFFSET ?
