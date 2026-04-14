@@ -26,8 +26,9 @@ const polishOnly = args.includes('--polish-only'); // skip download+ASR, re-poli
 const reprocess = args.includes('--reprocess'); // re-do even if transcript exists
 const delayMs = parseInt(args.find(a => a.startsWith('--delay='))?.split('=')[1] || '0') * 1000; // seconds between episodes
 
-function runWhisperxDiarize(audioFile, lang) {
+function runWhisperxDiarize(audioFile, lang, epId) {
   const wxLang = (lang || 'zh').replace(/[-_].*/, ''); // 'zh', 'en', etc.
+  const outFile = `/data/podcast-tmp/asr_diarize_out_${epId || 'tmp'}.json`;
   const script = `
 import os, json, torch, torchaudio, whisperx, warnings, pandas as pd
 warnings.filterwarnings('ignore')
@@ -36,6 +37,7 @@ os.environ['HF_TOKEN'] = '${HF_TOKEN}'
 device = "cuda"
 audio_file = "${audioFile}"
 wx_lang = "${wxLang}"
+outpath = "${outFile}"
 
 # 1. Load audio
 waveform, sr = torchaudio.load(audio_file)
@@ -82,7 +84,7 @@ for seg in result["segments"]:
         "text": seg.get("text", "").strip(),
         "speaker": seg.get("speaker", "UNKNOWN")
     })
-json.dump(output, open("/data/podcast-tmp/asr_diarize_out.json", "w"), ensure_ascii=False)
+json.dump(output, open(outpath, "w"), ensure_ascii=False)
 sys.stderr.write(f"  Output: {len(output)} segments\\n")
 print(f"{len(output)} segments, {len(speakers)} speakers: {','.join(speakers)}")
 `;
@@ -94,7 +96,9 @@ print(f"{len(output)} segments, {len(speakers)} speakers: {','.join(speakers)}")
   });
   if (r.stderr) process.stderr.write(r.stderr);
   if (r.status !== 0) throw new Error('whisperx failed: ' + (r.stderr || '').slice(-200));
-  return JSON.parse(fs.readFileSync('/data/podcast-tmp/asr_diarize_out.json', 'utf8'));
+  const result = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+  try { fs.unlinkSync(outFile); } catch (e) {}
+  return result;
 }
 
 function segsToText(segments) {
@@ -251,7 +255,7 @@ async function processEpisode(db, ep) {
 
     // ASR + Diarize
     process.stdout.write('ASR+Diarize... ');
-    const segments = runWhisperxDiarize(dlFile, lang);
+    const segments = runWhisperxDiarize(dlFile, lang, ep.id);
     const rawText = segsToText(segments);
 
     // Save raw ASR with speaker labels
@@ -275,7 +279,7 @@ async function processEpisode(db, ep) {
     fs.readdirSync('/data/podcast-tmp').filter(f => f.startsWith(`asr_d_${ep.id}`)).forEach(f => {
       try { fs.unlinkSync('/data/podcast-tmp/' + f); } catch (e) {}
     });
-    try { fs.unlinkSync('/data/podcast-tmp/asr_diarize_out.json'); } catch (e) {}
+    try { fs.unlinkSync(`/data/podcast-tmp/asr_diarize_out_${ep.id}.json`); } catch (e) {}
   }
 }
 
