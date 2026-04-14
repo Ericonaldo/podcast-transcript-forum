@@ -126,10 +126,15 @@ Runs the full API test suite (~50 test cases) covering CRUD operations, search, 
 | `node scripts/asr-zh.js` | Local ASR pipeline for Chinese podcasts |
 | `node scripts/translate-to-zh.js` | Translate English transcripts to Chinese from ASR/polished English sources |
 | `node scripts/batch-polish.js` | LLM-powered transcript polishing |
+| `python3 scripts/batch_transcribe.py --podcast 'Planet Money' --limit=5` | Batch transcribe missing audio-only episodes with GPU-to-CPU OOM fallback |
+| `python3 scripts/batch_transcribe_youtube.py --podcast '不明白播客' --limit=5` | Batch transcribe missing YouTube episodes with ASR-first OOM-safe fallback |
 | `npm run audit:podcast -- --podcast-id=23` | Audit one podcast for duplicate translations, speaker-label drift, and source-language mismatches |
 | `node scripts/repair-podcast-23.js --episodes=...` | Repair Dwarkesh Podcast batches by recovering sources, canonicalizing speaker labels, and deduplicating translations |
 | `npm run audit:inline-speakers` | Scan all polished transcripts for speaker tags that appear mid-paragraph instead of starting a new paragraph |
 | `npm run fix:inline-speakers` | Split inline speaker tags into proper paragraph starts across the transcript database |
+| `node scripts/audit-english-transcripts.js` | Audit all English podcasts for missing transcripts, asr-only episodes, malformed tags, and generic speaker labels |
+| `node scripts/fix-english-polish-format.js --podcast-id=25` | Normalize malformed English `llm_polish` formatting such as broken timestamp-speaker lines |
+| `node scripts/normalize-english-speakers.js --podcast-id=11` | Deterministically replace generic English speaker labels using host, title, and description hints |
 
 ## Codex Skills
 

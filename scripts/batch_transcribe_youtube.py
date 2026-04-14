@@ -103,13 +103,31 @@ def format_timestamp(seconds):
     return f"{minutes:02d}:{secs:02d}"
 
 
-def transcribe_audio(wav_path, language=None, model=None):
-    """Transcribe audio using faster-whisper large-v3-turbo."""
+def load_model(profile):
     from faster_whisper import WhisperModel
 
+    try:
+        if profile == 'gpu-int8':
+            print("  Loading whisper-large-v3-turbo model (gpu int8)...")
+            return WhisperModel("large-v3-turbo", device="cuda", compute_type="int8")
+        if profile == 'gpu-int8-f16':
+            print("  Loading whisper-large-v3-turbo model (gpu int8_float16)...")
+            return WhisperModel("large-v3-turbo", device="cuda", compute_type="int8_float16")
+        if profile == 'cpu-int8':
+            print("  Loading whisper-large-v3-turbo model (cpu int8)...")
+            return WhisperModel("large-v3-turbo", device="cpu", compute_type="int8")
+    except RuntimeError as e:
+        if 'out of memory' in str(e).lower() and profile.startswith('gpu'):
+            print(f"  OOM while loading {profile}, falling back to cpu-int8...")
+            return load_model('cpu-int8')
+        raise
+    raise ValueError(f"Unknown model profile: {profile}")
+
+
+def transcribe_audio(wav_path, language=None, model=None, model_profile='gpu-int8'):
+    """Transcribe audio using faster-whisper with an OOM-tolerant profile."""
     if model is None:
-        print("  Loading whisper-large-v3-turbo model...")
-        model = WhisperModel("large-v3-turbo", device="cuda", compute_type="int8_float16")
+        model = load_model(model_profile)
 
     lang = None
     if language and language.startswith('zh'):
@@ -117,25 +135,33 @@ def transcribe_audio(wav_path, language=None, model=None):
     elif language == 'en':
         lang = 'en'
 
-    segments, info = model.transcribe(
-        wav_path,
-        language=lang,
-        beam_size=5,
-        vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200),
-        word_timestamps=False,
-    )
+    try:
+        segments, info = model.transcribe(
+            wav_path,
+            language=lang,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200),
+            word_timestamps=False,
+        )
 
-    transcript_lines = []
-    for segment in segments:
-        start_time = format_timestamp(segment.start)
-        text = segment.text.strip()
-        if text:
-            transcript_lines.append(f"[{start_time}] {text}")
+        transcript_lines = []
+        for segment in segments:
+            start_time = format_timestamp(segment.start)
+            text = segment.text.strip()
+            if text:
+                transcript_lines.append(f"[{start_time}] {text}")
 
-    detected_language = info.language
-    transcript_text = "\n".join(transcript_lines)
-    return transcript_text, detected_language, model
+        detected_language = info.language
+        transcript_text = "\n".join(transcript_lines)
+        return transcript_text, detected_language, model, model_profile
+    except RuntimeError as e:
+        if 'out of memory' not in str(e).lower() or model_profile == 'cpu-int8':
+            raise
+        fallback_profile = 'gpu-int8' if model_profile == 'gpu-int8-f16' else 'cpu-int8'
+        print(f"  OOM on {model_profile}, retrying with {fallback_profile}...")
+        model = load_model(fallback_profile)
+        return transcribe_audio(wav_path, language=language, model=model, model_profile=fallback_profile)
 
 
 def save_transcript(db_path, episode_id, content, language, source='asr', fmt='plain'):
@@ -197,6 +223,7 @@ def main():
     asr_count = 0
     failures = []
     model = None
+    model_profile = 'gpu-int8'
 
     for i, episode in enumerate(episodes):
         ep_id = episode['id']
@@ -233,15 +260,15 @@ def main():
                 continue
 
             # Load model if needed
-            if model is None:
-                from faster_whisper import WhisperModel
-                print("  Loading whisper-large-v3-turbo model...")
-                model = WhisperModel("large-v3-turbo", device="cuda", compute_type="int8_float16")
-
             # Transcribe
             print(f"  Transcribing (language hint: {language})...")
             start_time = time.time()
-            transcript, detected_lang, model = transcribe_audio(wav_path, language, model)
+            transcript, detected_lang, model, model_profile = transcribe_audio(
+                wav_path,
+                language,
+                model=model,
+                model_profile=model_profile,
+            )
             elapsed = time.time() - start_time
 
             if not transcript or len(transcript.strip()) < 10:

@@ -31,8 +31,10 @@ Use this skill for repo-specific transcript operations in `podcast-transcript-fo
 - Re-polish one podcast: `node scripts/repolish-ep.js --podcast-id=<id>`
 - Postprocess polished output: `npm run postprocess -- --episode-id=<id>`
 - Audit malformed speaker tags: `node scripts/verify-speaker-tags.js`
+- Audit English transcript backlog and quality: `node scripts/audit-english-transcripts.js`
 - Audit inline speaker tags: `npm run audit:inline-speakers`
 - Fix inline speaker tags: `npm run fix:inline-speakers`
+- Normalize generic English speaker labels: `node scripts/normalize-english-speakers.js --podcast-id=<id>`
 - Inspect one episode's polished transcript: `node scripts/check-ep.js <episodeId>`
 
 Read [references/commands.md](references/commands.md) for the fuller command set and script-specific notes.
@@ -41,6 +43,7 @@ Read [references/commands.md](references/commands.md) for the fuller command set
 
 - Re-polish must preserve the original transcript text and order. Do not retranscribe when the task is repolish-only.
 - Speaker naming should use episode metadata and description to avoid homophone mistakes.
+- For English podcasts, prefer deterministic cleanup of `Host/Guest/Unknown` labels when host, title, or description already make the mapping obvious.
 - Treat `youtube_auto` and `youtube_manual` as legacy fallback rows to replace, not preferred sources of truth.
 - After polishing, always run postprocess cleanup so leaked prompt hints and malformed tag variants are removed.
 - When a speaker tag appears mid-paragraph, use the inline-speaker repair script instead of hand-editing transcript rows.
