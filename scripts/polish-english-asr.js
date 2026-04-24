@@ -12,6 +12,10 @@ const MAX_LEN = 220000;
 const args = process.argv.slice(2);
 const podcastId = parseInt(args.find((arg) => arg.startsWith('--podcast-id='))?.split('=')[1] || '0', 10);
 const limit = parseInt(args.find((arg) => arg.startsWith('--limit='))?.split('=')[1] || '0', 10);
+const episodeFilter = new Set((args.find((arg) => arg.startsWith('--episodes='))?.split('=')[1] || '')
+  .split(',')
+  .map((value) => parseInt(value, 10))
+  .filter(Boolean));
 
 function makePrompt(episode) {
   return `You are repairing an English podcast transcript from raw ASR.
@@ -121,6 +125,9 @@ async function main() {
     ORDER BY e.id DESC
   `).all(...(podcastId ? [podcastId] : []));
 
+  if (episodeFilter.size) {
+    episodes = episodes.filter((episode) => episodeFilter.has(episode.id));
+  }
   if (limit > 0) episodes = episodes.slice(0, limit);
   console.log(`Polish english asr-only: ${episodes.length} episodes`);
 
