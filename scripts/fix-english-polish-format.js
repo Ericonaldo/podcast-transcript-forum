@@ -77,6 +77,29 @@ function normalizeText(podcastName, title, content) {
       continue;
     }
 
+    match = line.match(/^\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s+\*\*\[([^\]]{1,80})\]:\*\*\s*(.*)$/);
+    if (match) {
+      currentSpeaker = match[2].trim();
+      output.push(`[${match[1]}]`);
+      output.push(`**[${currentSpeaker}]** ${match[3].trim()}`.trim());
+      continue;
+    }
+
+    match = line.match(/^\*\*\[([^\]]{1,80})\]:\*\*\s*(.*)$/);
+    if (match) {
+      currentSpeaker = match[1].trim();
+      output.push(`**[${currentSpeaker}]** ${match[2].trim()}`.trim());
+      continue;
+    }
+
+    match = line.match(/^\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s+\[([^\]]{1,80})\]\*\*\s*(.*)$/);
+    if (match) {
+      currentSpeaker = match[2].trim();
+      output.push(`[${match[1]}]`);
+      output.push(`**[${currentSpeaker}]** ${match[3].trim()}`.trim());
+      continue;
+    }
+
     match = line.match(/^\*\*\[(\d{1,3}:\d{2}(?::\d{2})?)\]\s*(.+?)\*\*$/);
     if (match) {
       output.push(`[${match[1]}] ${match[2].trim()}`.trim());
@@ -90,6 +113,12 @@ function normalizeText(podcastName, title, content) {
     }
 
     if (line === '**[' || /^\*\*\[\s*$/.test(line)) {
+      continue;
+    }
+
+    if (/^\*\*[^[]/.test(line)) {
+      line = line.replace(/^\*\*\s*/, '').replace(/\s*\*\*$/g, '');
+      output.push(line.trim());
       continue;
     }
 
