@@ -54,26 +54,38 @@ function splitChunks(text) {
 }
 
 async function callLLM(system, text) {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: text },
-      ],
-      max_tokens: 4096,
-      temperature: 0.1,
-    }),
-  });
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: text },
+        ],
+        max_tokens: 4096,
+        temperature: 0.1,
+      }),
+    });
 
-  if (!response.ok) throw new Error(`LLM ${response.status}`);
-  const data = await response.json();
-  return data?.choices?.[0]?.message?.content?.trim() || '';
+    if (response.ok) {
+      const data = await response.json();
+      return data?.choices?.[0]?.message?.content?.trim() || '';
+    }
+
+    if (response.status === 429 && attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 5000 * (attempt + 1)));
+      continue;
+    }
+
+    throw new Error(`LLM ${response.status}`);
+  }
+
+  throw new Error('LLM retry exhaustion');
 }
 
 function normalizeContent(content) {
@@ -107,8 +119,14 @@ async function polishEpisode(db, episode) {
   }
 
   const content = normalizeContent(results.join('\n\n'));
-  db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'en', 'llm_polish')")
-    .run(episode.id, content);
+  const existing = db.prepare("SELECT id FROM transcripts WHERE episode_id=? AND source='llm_polish'").get(episode.id);
+  if (existing) {
+    db.prepare("UPDATE transcripts SET content=?, format='plain', language='en', updated_at=CURRENT_TIMESTAMP WHERE id=?")
+      .run(content, existing.id);
+  } else {
+    db.prepare("INSERT INTO transcripts (episode_id, content, format, language, source) VALUES (?, ?, 'plain', 'en', 'llm_polish')")
+      .run(episode.id, content);
+  }
   return `OK (${chunks.length} chunks, ${(content.length / 1000).toFixed(0)}k)`;
 }
 
